@@ -1320,7 +1320,7 @@ function openClientForm({ clientId } = {}) {
           </div>
           <div class="field">
             <label for="clientPhoneInput">Телефон</label>
-            <input id="clientPhoneInput" class="text-input" type="tel" inputmode="numeric" pattern="[0-9]*" value="${escapeHtml(client?.phone || "")}" placeholder="Только цифры" />
+            <input id="clientPhoneInput" class="text-input" type="tel" inputmode="tel" value="${escapeHtml(client?.phone || "")}" placeholder="+7 (999) 123-45-67" />
           </div>
           <div class="field">
             <label for="clientCityInput">Город / село</label>
@@ -1445,7 +1445,7 @@ function openClientForm({ clientId } = {}) {
         const record = {
           id: client?.id || createId("client"),
           name: sheetBody.querySelector("#clientNameInput").value.trim(),
-          phone: sheetBody.querySelector("#clientPhoneInput").value.replace(/\D/g, ""),
+          phone: sheetBody.querySelector("#clientPhoneInput").value.trim(),
           city: sheetBody.querySelector("#clientCityInput").value.trim(),
           address: sheetBody.querySelector("#clientAddressInput").value.trim(),
           notes: sheetBody.querySelector("#clientNotesInput").value.trim(),
@@ -1513,7 +1513,7 @@ function openOrderForm({ orderId, clientId } = {}) {
               </div>
               <div class="field">
                 <label for="orderClientPhoneInput">Телефон</label>
-                <input id="orderClientPhoneInput" class="text-input" type="tel" inputmode="numeric" pattern="[0-9]*" value="${escapeHtml(selectedClient?.phone || "")}" placeholder="Только цифры" />
+                <input id="orderClientPhoneInput" class="text-input" type="tel" inputmode="tel" value="${escapeHtml(selectedClient?.phone || "")}" placeholder="+7 (999) 123-45-67" />
               </div>
               <div class="field">
                 <label for="orderClientCityInlineInput">Город / село</label>
@@ -1736,7 +1736,7 @@ function openOrderForm({ orderId, clientId } = {}) {
           currentClient = {
             id: order?.clientId || createId("client"),
             name: newClientName,
-            phone: sheetBody.querySelector("#orderClientPhoneInput").value.replace(/\D/g, ""),
+            phone: sheetBody.querySelector("#orderClientPhoneInput").value.trim(),
             city: sheetBody.querySelector("#orderClientCityInlineInput").value.trim(),
             address: sheetBody.querySelector("#orderClientAddressInlineInput").value.trim(),
             notes: sheetBody.querySelector("#orderClientNotesInlineInput").value.trim(),
