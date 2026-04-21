@@ -300,17 +300,6 @@ function renderHomeScreen() {
 
   return `
     <section class="screen-stack">
-      <article class="hero-card">
-        <p class="eyebrow">Ежедневная работа без лишних действий</p>
-        <h2>Доход, расходы и заявки в одном офлайн-приложении</h2>
-        <p>Главный экран собран как рабочий пульт: видно заработок, нагрузку на сегодня и свежие заявки без переходов по вложенным меню.</p>
-        <div class="hero-actions" style="margin-top: 16px;">
-          <button class="primary-button" type="button" data-action="new-order">Новый заказ</button>
-          <button class="ghost-button" type="button" data-action="new-expense">Новый расход</button>
-          <button class="chip-button" type="button" data-action="open-calculator">Калькулятор</button>
-        </div>
-      </article>
-
       <section class="stats-grid">
         ${renderMetricCard("Доход сегодня", todayStats.income, `${todayStats.doneOrders} выполнено`, "success")}
         ${renderMetricCard("Расход сегодня", todayStats.expense, `${todayStats.expenseCount} расходов`, "amber")}
@@ -354,23 +343,7 @@ function renderHomeScreen() {
       <section class="section-card">
         <div class="section-header">
           <div>
-            <p class="eyebrow">Быстрые действия</p>
-            <h3>То, что нужно под рукой</h3>
-          </div>
-        </div>
-        <div class="quick-action-grid">
-          ${renderQuickActionCard("Новый клиент", "Добавить контакт, источник и связь", "new-client")}
-          ${renderQuickActionCard("Новый заказ", "Записать заявку и дату выполнения", "new-order")}
-          ${renderQuickActionCard("Новый расход", "Учесть заправку, ремонт или покупку", "new-expense")}
-          ${renderQuickActionCard("Калькулятор", "Открыть встроенный слой поверх экрана", "open-calculator")}
-        </div>
-      </section>
-
-      <section class="section-card">
-        <div class="section-header">
-          <div>
-            <p class="eyebrow">Последние действия</p>
-            <h3>Свежие заказы и изменения</h3>
+            <h3>Последние заказы</h3>
           </div>
           <button class="ghost-button" type="button" data-go-screen="orders">Все заказы</button>
         </div>
@@ -378,7 +351,7 @@ function renderHomeScreen() {
           ${
             recentActivity.length
               ? recentActivity.map((order) => renderOrderCard(order, { compact: true })).join("")
-              : renderEmptyCard("Пока нет заказов", "Добавьте первый заказ через кнопку + или карточку быстрого действия.")
+              : renderEmptyCard("Пока нет заказов", "Добавьте первый заказ через кнопку +.")
           }
         </div>
       </section>
@@ -1519,96 +1492,98 @@ function openOrderForm({ orderId, clientId } = {}) {
                 <label for="orderClientCityInlineInput">Город / село</label>
                 <input id="orderClientCityInlineInput" class="text-input" type="text" value="${escapeHtml(selectedClient?.city || order?.city || "")}" />
               </div>
+            </div>
+
+            <button id="toggleOrderClientExtraButton" class="ghost-button" type="button">
+              Дополнительно
+            </button>
+
+            <div id="orderClientExtraFields" class="sheet-section" style="display:none;">
               <div class="field">
                 <label for="orderClientAddressInlineInput">Адрес</label>
                 <input id="orderClientAddressInlineInput" class="text-input" type="text" value="${escapeHtml(selectedClient?.address || order?.address || "")}" />
               </div>
-            </div>
 
-            <div class="field">
-              <label for="orderClientNotesInlineInput">Комментарий</label>
-              <textarea id="orderClientNotesInlineInput" class="textarea-input">${escapeHtml(selectedClient?.notes || "")}</textarea>
-            </div>
-
-            <div class="form-grid">
-              <label class="field-checkbox">
-                <input id="orderClientHasOwnPhoneInput" type="checkbox" ${selectedClient?.hasOwnPhone !== false ? "checked" : ""} />
-                <span>Есть собственный номер</span>
-              </label>
-              <label class="field-checkbox">
-                <input id="orderClientLinkModeInput" type="checkbox" ${selectedClient?.linkedClientId ? "checked" : ""} />
-                <span>Связь через другого клиента</span>
-              </label>
-            </div>
-
-            <div id="orderClientRelationFields" class="form-grid" style="${selectedClient?.linkedClientId ? "" : "display:none;"}">
               <div class="field">
-                <label for="orderLinkedClientSelect">Выбрать клиента</label>
-                <select id="orderLinkedClientSelect" class="select-input">
-                  <option value="">Не выбран</option>
+                <label for="orderClientNotesInlineInput">Комментарий</label>
+                <textarea id="orderClientNotesInlineInput" class="textarea-input">${escapeHtml(selectedClient?.notes || "")}</textarea>
+              </div>
+
+              <div class="form-grid">
+                <label class="field-checkbox">
+                  <input id="orderClientHasOwnPhoneInput" type="checkbox" ${selectedClient?.hasOwnPhone !== false ? "checked" : ""} />
+                  <span>Есть собственный номер</span>
+                </label>
+                <label class="field-checkbox">
+                  <input id="orderClientLinkModeInput" type="checkbox" ${selectedClient?.linkedClientId ? "checked" : ""} />
+                  <span>Связь через другого клиента</span>
+                </label>
+              </div>
+
+              <div id="orderClientRelationFields" class="form-grid" style="${selectedClient?.linkedClientId ? "" : "display:none;"}">
+                <div class="field">
+                  <label for="orderLinkedClientSelect">Выбрать клиента</label>
+                  <select id="orderLinkedClientSelect" class="select-input">
+                    <option value="">Не выбран</option>
+                    ${state.data.clients
+                      .map(
+                        (item) => `
+                          <option value="${item.id}" ${selectedClient?.linkedClientId === item.id ? "selected" : ""}>${escapeHtml(item.name)}</option>
+                        `,
+                      )
+                      .join("")}
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="orderRelationTypeSelect">Тип связи</label>
+                  <select id="orderRelationTypeSelect" class="select-input">
+                    <option value="">Не выбрано</option>
+                    ${RELATION_TYPES.map(
+                      (relation) => `
+                        <option value="${relation}" ${selectedClient?.relationType === relation ? "selected" : ""}>${relation}</option>
+                      `,
+                    ).join("")}
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-grid">
+                <div class="field">
+                  <label for="orderClientSourceInlineSelect">Откуда узнал</label>
+                  <select id="orderClientSourceInlineSelect" class="select-input">
+                    ${CLIENT_SOURCES.map(
+                      (source) => `
+                        <option value="${source}" ${(selectedClient?.source || "Авито") === source ? "selected" : ""}>${source}</option>
+                      `,
+                    ).join("")}
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="orderClientSourceCommentInlineInput">Комментарий к источнику</label>
+                  <input id="orderClientSourceCommentInlineInput" class="text-input" type="text" value="${escapeHtml(selectedClient?.sourceComment || "")}" />
+                </div>
+              </div>
+
+              <div id="orderClientReferralField" class="field" style="${
+                selectedClient?.source === "Знакомые" || selectedClient?.source === "Через соседа" ? "" : "display:none;"
+              }">
+                <label for="orderClientReferredBySelect">Через кого?</label>
+                <select id="orderClientReferredBySelect" class="select-input">
+                  <option value="">Не выбрано</option>
                   ${state.data.clients
                     .map(
                       (item) => `
-                        <option value="${item.id}" ${selectedClient?.linkedClientId === item.id ? "selected" : ""}>${escapeHtml(item.name)}</option>
+                        <option value="${item.id}" ${selectedClient?.referredByClientId === item.id ? "selected" : ""}>${escapeHtml(item.name)}</option>
                       `,
                     )
                     .join("")}
                 </select>
               </div>
-              <div class="field">
-                <label for="orderRelationTypeSelect">Тип связи</label>
-                <select id="orderRelationTypeSelect" class="select-input">
-                  <option value="">Не выбрано</option>
-                  ${RELATION_TYPES.map(
-                    (relation) => `
-                      <option value="${relation}" ${selectedClient?.relationType === relation ? "selected" : ""}>${relation}</option>
-                    `,
-                  ).join("")}
-                </select>
-              </div>
             </div>
-
-            <div class="form-grid">
-              <div class="field">
-                <label for="orderClientSourceInlineSelect">Откуда узнал</label>
-                <select id="orderClientSourceInlineSelect" class="select-input">
-                  ${CLIENT_SOURCES.map(
-                    (source) => `
-                      <option value="${source}" ${(selectedClient?.source || "Авито") === source ? "selected" : ""}>${source}</option>
-                    `,
-                  ).join("")}
-                </select>
-              </div>
-              <div class="field">
-                <label for="orderClientSourceCommentInlineInput">Комментарий к источнику</label>
-                <input id="orderClientSourceCommentInlineInput" class="text-input" type="text" value="${escapeHtml(selectedClient?.sourceComment || "")}" />
-              </div>
-            </div>
-
-            <div id="orderClientReferralField" class="field" style="${
-              selectedClient?.source === "Знакомые" || selectedClient?.source === "Через соседа" ? "" : "display:none;"
-            }">
-              <label for="orderClientReferredBySelect">Через кого?</label>
-              <select id="orderClientReferredBySelect" class="select-input">
-                <option value="">Не выбрано</option>
-                ${state.data.clients
-                  .map(
-                    (item) => `
-                      <option value="${item.id}" ${selectedClient?.referredByClientId === item.id ? "selected" : ""}>${escapeHtml(item.name)}</option>
-                    `,
-                  )
-                  .join("")}
-              </select>
-            </div>
-          </div>
-
-          <div class="helper-banner">
-            Заказ можно сохранить либо на клиента из базы, либо сразу с созданием нового клиента прямо в этой форме.
           </div>
         </section>
 
         <section class="sheet-section">
-          <h3>Работа</h3>
           <div class="form-grid">
             <div class="field">
               <label for="orderWorkTypeSelect">Тип работы</label>
@@ -1673,6 +1648,8 @@ function openOrderForm({ orderId, clientId } = {}) {
       const newClientModeButton = sheetBody.querySelector("#newClientModeButton");
       const existingClientField = sheetBody.querySelector("#existingClientField");
       const newClientFields = sheetBody.querySelector("#newClientFields");
+      const toggleOrderClientExtraButton = sheetBody.querySelector("#toggleOrderClientExtraButton");
+      const orderClientExtraFields = sheetBody.querySelector("#orderClientExtraFields");
       const cityInput = sheetBody.querySelector("#orderCityInput");
       const addressInput = sheetBody.querySelector("#orderAddressInput");
       const clientLinkModeInput = sheetBody.querySelector("#orderClientLinkModeInput");
@@ -1694,6 +1671,14 @@ function openOrderForm({ orderId, clientId } = {}) {
         clientMode = "new";
         syncClientMode();
       });
+
+      if (toggleOrderClientExtraButton) {
+        toggleOrderClientExtraButton.addEventListener("click", () => {
+          const isHidden = orderClientExtraFields.style.display === "none";
+          orderClientExtraFields.style.display = isHidden ? "" : "none";
+          toggleOrderClientExtraButton.textContent = isHidden ? "Скрыть доп. поля" : "Дополнительно";
+        });
+      }
 
       clientSelect.addEventListener("change", () => {
         const currentClient = getClientById(clientSelect.value);
@@ -1738,15 +1723,15 @@ function openOrderForm({ orderId, clientId } = {}) {
             name: newClientName,
             phone: sheetBody.querySelector("#orderClientPhoneInput").value.trim(),
             city: sheetBody.querySelector("#orderClientCityInlineInput").value.trim(),
-            address: sheetBody.querySelector("#orderClientAddressInlineInput").value.trim(),
-            notes: sheetBody.querySelector("#orderClientNotesInlineInput").value.trim(),
+            address: sheetBody.querySelector("#orderClientAddressInlineInput")?.value.trim() || "",
+            notes: sheetBody.querySelector("#orderClientNotesInlineInput")?.value.trim() || "",
             source: newClientSource,
-            sourceComment: sheetBody.querySelector("#orderClientSourceCommentInlineInput").value.trim(),
-            hasOwnPhone: sheetBody.querySelector("#orderClientHasOwnPhoneInput").checked,
-            linkedClientId: sheetBody.querySelector("#orderClientLinkModeInput").checked ? sheetBody.querySelector("#orderLinkedClientSelect").value : "",
-            relationType: sheetBody.querySelector("#orderClientLinkModeInput").checked ? sheetBody.querySelector("#orderRelationTypeSelect").value : "",
+            sourceComment: sheetBody.querySelector("#orderClientSourceCommentInlineInput")?.value.trim() || "",
+            hasOwnPhone: sheetBody.querySelector("#orderClientHasOwnPhoneInput")?.checked ?? true,
+            linkedClientId: sheetBody.querySelector("#orderClientLinkModeInput")?.checked ? sheetBody.querySelector("#orderLinkedClientSelect").value : "",
+            relationType: sheetBody.querySelector("#orderClientLinkModeInput")?.checked ? sheetBody.querySelector("#orderRelationTypeSelect").value : "",
             referredByClientId: ["Знакомые", "Через соседа"].includes(newClientSource)
-              ? sheetBody.querySelector("#orderClientReferredBySelect").value
+              ? sheetBody.querySelector("#orderClientReferredBySelect")?.value || ""
               : "",
             createdAt: selectedClient?.createdAt || nowIso(),
             updatedAt: nowIso(),
