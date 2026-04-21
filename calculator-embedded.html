@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tractor Calc PRO</title>
+  <style>
+    :root { --bg-gradient: radial-gradient(circle at top left, #1b9fff 0%, #101016 40%, #050509 100%); --card-bg: rgba(15, 15, 20, 0.92); --card-border: rgba(255, 255, 255, 0.06); --accent: #30d158; --accent-soft: rgba(48, 209, 88, 0.25); --accent-3: #ff9f0a; --accent-3-soft: rgba(255, 159, 10, 0.2); --text-main: #ffffff; --text-muted: #9ca3af; --input-bg: rgba(22, 24, 34, 0.95); --input-border: rgba(148, 163, 184, 0.35); --shadow-soft: 0 20px 40px rgba(0, 0, 0, 0.55); --radius-lg: 22px; }
+    body.light-theme { --bg-gradient: radial-gradient(circle at top left, #e0f2fe 0%, #f9fafb 40%, #e5e7eb 100%); --card-bg: rgba(255, 255, 255, 0.98); --card-border: rgba(15, 23, 42, 0.06); --text-main: #111827; --text-muted: #6b7280; --input-bg: rgba(243, 244, 246, 0.98); --input-border: rgba(148, 163, 184, 0.45); --shadow-soft: 0 18px 35px rgba(15, 23, 42, 0.2); }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #050509; background-image: var(--bg-gradient); color: var(--text-main); min-height: 100vh; display: flex; justify-content: center; align-items: stretch; padding: 14px 10px 22px; overflow-x: hidden; }
+    .bg-ornament { position: fixed; inset: 0; pointer-events: none; z-index: -1; overflow: hidden; }
+    .bg-blob { position: absolute; width: 260px; height: 260px; border-radius: 50%; filter: blur(40px); opacity: 0.35; mix-blend-mode: screen; animation: float 12s infinite ease-in-out; }
+    .bg-blob:nth-child(1) { top: -40px; left: -40px; background: #0a84ff; }
+    .bg-blob:nth-child(2) { bottom: -60px; right: -40px; background: #30d158; animation-delay: 2s; }
+    .bg-blob:nth-child(3) { top: 40%; right: 20%; background: #ff9f0a; animation-delay: 4s; }
+    @keyframes float { 0% { transform: translate3d(0, 0, 0) scale(1); } 50% { transform: translate3d(10px, -18px, 0) scale(1.05); } 100% { transform: translate3d(0, 0, 0) scale(1); } }
+    .app { width: 100%; max-width: 440px; margin: auto; position: relative; }
+    .app-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding: 4px 2px; }
+    .logo-wrap { display: flex; align-items: center; gap: 10px; }
+    .logo-icon { width: 40px; height: 40px; border-radius: 14px; background: radial-gradient(circle at 30% 30%, #ffffff 0, #ffd60a 38%, #ff9f0a 70%, #d97706 100%); box-shadow: 0 0 0 1px rgba(248, 250, 252, 0.2), 0 18px 35px rgba(0, 0, 0, 0.4); display: flex; align-items: center; justify-content: center; color: #111827; font-size: 22px; }
+    .logo-text h1 { font-size: 20px; margin: 0; letter-spacing: 0.02em; }
+    .logo-sub { font-size: 12px; color: var(--text-muted); }
+    .theme-toggle { border-radius: 999px; padding: 6px 10px; border: 1px solid rgba(148, 163, 184, 0.4); background: radial-gradient(circle at top, rgba(255, 255, 255, 0.12), rgba(15, 23, 42, 0.42)); color: var(--text-main); display: flex; align-items: center; gap: 6px; font-size: 11px; cursor: pointer; box-shadow: 0 10px 22px rgba(15, 23, 42, 0.4); }
+    .card { background: var(--card-bg); border-radius: var(--radius-lg); padding: 18px 16px 16px; margin-bottom: 16px; box-shadow: var(--shadow-soft); border: 1px solid var(--card-border); backdrop-filter: blur(20px); position: relative; overflow: hidden; }
+    .card::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: radial-gradient(circle at top left, rgba(250, 250, 250, 0.12), transparent 55%); opacity: 0.7; pointer-events: none; }
+    .card-main, .result-wrap { position: relative; z-index: 1; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 12px; }
+    .card-header h2 { margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+    .pill { font-size: 11px; padding: 2px 9px; border-radius: 999px; border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.75); color: var(--text-muted); }
+    label { display: block; font-size: 13px; margin-top: 10px; margin-bottom: 3px; color: var(--text-muted); }
+    select, input[type="number"] { width: 100%; padding: 9px 11px; border-radius: 12px; border: 1px solid var(--input-border); background: linear-gradient(135deg, var(--input-bg), rgba(15, 23, 42, 0.85)); color: var(--text-main); font-size: 14px; outline: none; appearance: none; }
+    .select-wrap { position: relative; }
+    .select-wrap::after { content: "▾"; position: absolute; right: 11px; top: 50%; transform: translateY(-52%); font-size: 10px; color: var(--text-muted); pointer-events: none; }
+    .switch { display: flex; gap: 8px; margin-top: 8px; }
+    .chip-btn, .toggle-btn-extra, .btn-main, .btn-share { width: 100%; cursor: pointer; border-radius: 999px; }
+    .chip-btn { flex: 1; padding: 8px 10px; border: 1px solid rgba(148, 163, 184, 0.45); background: radial-gradient(circle at top, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.7)); color: var(--text-muted); font-size: 13px; }
+    .chip-btn.active { background: radial-gradient(circle at top, var(--accent-soft), rgba(15, 23, 42, 0.9)); border-color: var(--accent); color: var(--text-main); }
+    .toggle-btn-extra { margin-top: 10px; padding: 9px 11px; border: 1px dashed rgba(148, 163, 184, 0.45); background: radial-gradient(circle at top, rgba(15, 23, 42, 0.95), rgba(15, 23, 42, 0.8)); color: var(--text-muted); font-size: 13px; }
+    .toggle-btn-extra.active { border-style: solid; border-color: var(--accent-3); background: radial-gradient(circle at top, var(--accent-3-soft), rgba(15, 23, 42, 0.95)); color: #fef9c3; }
+    .btn-main { margin-top: 14px; padding: 12px 14px; border: none; background: radial-gradient(circle at top, #22c55e, #16a34a); color: #ecfdf5; font-size: 15px; font-weight: 600; }
+    .btn-share { margin-top: 10px; padding: 11px 14px; border: 1px solid rgba(125, 211, 252, 0.5); background: radial-gradient(circle at top, rgba(56, 189, 248, 0.12), rgba(15, 23, 42, 0.96)); color: #e0f2fe; font-size: 14px; }
+    .result { text-align: center; font-size: 26px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: baseline; justify-content: center; gap: 6px; }
+    .result-anim { animation: popIn 0.25s ease-out; }
+    @keyframes popIn { 0% { transform: scale(0.9) translateY(4px); opacity: 0; } 100% { transform: scale(1) translateY(0); opacity: 1; } }
+    .result span.currency { font-size: 16px; font-weight: 600; opacity: 0.8; }
+    .small { text-align: center; font-size: 12px; color: var(--text-muted); margin-top: 4px; white-space: pre-line; }
+    .tagline { font-size: 11px; text-align: center; margin-top: 10px; color: var(--text-muted); }
+    .tagline span { color: var(--accent-3); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="bg-ornament"><div class="bg-blob"></div><div class="bg-blob"></div><div class="bg-blob"></div></div>
+  <div class="app">
+    <header class="app-header">
+      <div class="logo-wrap">
+        <div class="logo-icon" id="logoIcon">🚜</div>
+        <div class="logo-text">
+          <h1>Tractor Calc PRO</h1>
+          <div class="logo-sub" id="logoSub">Быстрый расчёт вспашки</div>
+        </div>
+      </div>
+      <button class="theme-toggle" id="themeToggle"><span id="themeEmoji">🌙</span><span id="themeLabel">Тёмная</span></button>
+    </header>
+    <div class="card">
+      <div class="card-main">
+        <div class="card-header"><h2>Калькулятор <span>⚙️</span></h2><div class="pill" id="modeHint">Режим: Огород • Д × Ш</div></div>
+        <label>Тип работы</label>
+        <div class="select-wrap"><select id="type" onchange="updateHints()"><option value="ogorod">Огород</option><option value="parnik">Парник</option></select></div>
+        <label>Населённый пункт</label>
+        <div class="select-wrap">
+          <select id="city" onchange="updateHints()">
+            <option value="mestniy" data-min-price="2000">Местный</option>
+            <option value="grozny" data-min-price="5000">Грозный</option>
+            <option value="gudermes" data-min-price="5000">Гудермес</option>
+            <option value="kurchaloy" data-min-price="3500">Курчалой</option>
+            <option value="shali" data-min-price="4000">Шали</option>
+            <option value="avtury" data-min-price="3000">Автуры</option>
+            <option value="djalka" data-min-price="4000">Джалка</option>
+            <option value="argun" data-min-price="4000">Аргун</option>
+            <option value="urus-martan" data-min-price="6000">Урус-Мартан</option>
+            <option value="achkhoi-martan" data-min-price="8000">Ачхой-Мартан</option>
+            <option value="starye-atagi" data-min-price="5000">Старые Атаги</option>
+            <option value="novye-atagi" data-min-price="4000">Новые Атаги</option>
+            <option value="bachi-yurt" data-min-price="4000">Бачи-Юрт</option>
+          </select>
+        </div>
+        <label>Способ расчёта</label>
+        <div class="switch">
+          <button id="btnSize" class="chip-btn active" onclick="setMode('size')" type="button">📐 Длина × ширина</button>
+          <button id="btnSotki" class="chip-btn" onclick="setMode('sotki')" type="button">📏 Сотки</button>
+        </div>
+        <div id="sizeBlock">
+          <label>Длина (м)</label>
+          <input type="number" id="length" min="0" inputmode="decimal" placeholder="Например, 25" />
+          <label>Ширина (м)</label>
+          <input type="number" id="width" min="0" inputmode="decimal" placeholder="Например, 8" />
+        </div>
+        <div id="sotkiBlock" style="display:none">
+          <label>Сотки</label>
+          <input type="number" id="sotki" min="0" step="0.01" inputmode="decimal" placeholder="Например, 6" />
+        </div>
+        <button id="fuelBtn" class="toggle-btn-extra" onclick="toggleFuel()" type="button">⛽ Добавить заправку +2000 ₽</button>
+        <button class="btn-main" onclick="calc()" type="button">⚡ Рассчитать</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="result-wrap">
+        <div class="card-header" style="margin-bottom:6px;"><h2>Итого <span>💰</span></h2><div class="pill" id="priceHint">1 сотка = 1000 ₽ (минимум по городу)</div></div>
+        <div class="result" id="result">0 <span class="currency">руб</span></div>
+        <div class="small" id="details"></div>
+        <button class="btn-share" onclick="share()" type="button">📤 Поделиться расчётом</button>
+        <div class="tagline" id="tagline">Точный расчёт <span>за пару секунд</span> — удобно для клиента.</div>
+      </div>
+    </div>
+  </div>
+  <script>
+    let mode='size'; let fuel=false; let lastText=''; let theme='dark';
+    const modeHintEl=document.getElementById('modeHint'); const logoSubEl=document.getElementById('logoSub'); const priceHintEl=document.getElementById('priceHint'); const taglineEl=document.getElementById('tagline'); const resultEl=document.getElementById('result'); const themeToggleBtn=document.getElementById('themeToggle'); const themeEmojiEl=document.getElementById('themeEmoji'); const themeLabelEl=document.getElementById('themeLabel'); const logoIconEl=document.getElementById('logoIcon');
+    function updateHints(){const type=document.getElementById('type').value; const citySelect=document.getElementById('city'); const cityOption=citySelect.options[citySelect.selectedIndex]; const cityName=cityOption.textContent.trim(); const minPrice=Number(cityOption.dataset.minPrice||0); const cityValue=cityOption.value; const isLocal=cityValue==='mestniy'; logoSubEl.textContent=type==='ogorod'?(isLocal?'Местный тариф: 750 ₽/сотка, минимум 2000 ₽':`Огород • ${cityName}`):(isLocal?'Парник (местный): 900 ₽/сотка, минимум 2000 ₽':`Парник • ${cityName}`); modeHintEl.textContent=`Режим: ${type==='ogorod'?'Огород':'Парник'} • ${mode==='size'?'Д × Ш':'Сотки'}`; priceHintEl.textContent=type==='ogorod'?`${cityName} (огород): ${isLocal?'1 сотка = 750 ₽':'1 сотка = 1000 ₽'}, минимум ${minPrice.toLocaleString('ru-RU')} ₽`:`${cityName} (парник): ${isLocal?'1 сотка = 900 ₽':'1 сотка = 1200 ₽'}, минимум ${minPrice.toLocaleString('ru-RU')} ₽`; taglineEl.innerHTML=type==='ogorod'?'Разный минимум по каждому селу — <span>честный расчёт для клиента</span>.':'Парник дороже за сотку, но минимум как у огорода — <span>понятный тариф</span>.';}
+    function setMode(nextMode){mode=nextMode; document.getElementById('sizeBlock').style.display=mode==='size'?'block':'none'; document.getElementById('sotkiBlock').style.display=mode==='sotki'?'block':'none'; document.getElementById('btnSize').classList.toggle('active',mode==='size'); document.getElementById('btnSotki').classList.toggle('active',mode==='sotki'); updateHints();}
+    function toggleFuel(){fuel=!fuel; document.getElementById('fuelBtn').classList.toggle('active',fuel);}
+    function getSotki(){if(mode==='size'){const length=+document.getElementById('length').value||0; const width=+document.getElementById('width').value||0; return (length*width)/100;} return +document.getElementById('sotki').value||0;}
+    function animateResult(){resultEl.classList.remove('result-anim'); void resultEl.offsetWidth; resultEl.classList.add('result-anim');}
+    function calc(){const type=document.getElementById('type').value; const citySelect=document.getElementById('city'); const cityOption=citySelect.options[citySelect.selectedIndex]; const cityName=cityOption.textContent.trim(); const cityValue=cityOption.value; const minPrice=Number(cityOption.dataset.minPrice||0); const sotki=getSotki(); let total=0; if(sotki<=0){resultEl.innerHTML='0 <span class="currency">руб</span>'; document.getElementById('details').innerText='Укажите площадь (длину и ширину или количество соток).'; lastText=''; return;} const isLocal=cityValue==='mestniy'; if(type==='ogorod'){total=sotki*(isLocal?750:1000); total=Math.max(total,isLocal?2000:minPrice);} else {total=sotki*(isLocal?900:1200); total=Math.max(total,isLocal?2000:minPrice);} if(fuel) total+=2000; const rounded=Math.round(total); resultEl.innerHTML=`${rounded.toLocaleString('ru-RU')} <span class="currency">руб</span>`; animateResult(); lastText=`Тип: ${type==='ogorod'?'Огород':'Парник'}\nНас. пункт: ${cityName}\nПлощадь: ${sotki.toFixed(2)} сот.\nИтого: ${rounded.toLocaleString('ru-RU')} ₽${fuel?' + заправка 2000 ₽':''}`; document.getElementById('details').innerText=lastText;}
+    async function share(){if(!lastText){alert('Сначала выполните расчёт.'); return;} if(navigator.share){await navigator.share({title:'Расчёт трактора',text:lastText}); return;} if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(lastText); alert('Скопировано в буфер обмена!'); return;} alert('Поделиться не удалось: нет поддержки API.');}
+    function toggleTheme(){theme=theme==='dark'?'light':'dark'; document.body.classList.toggle('light-theme',theme==='light'); themeEmojiEl.textContent=theme==='light'?'☀️':'🌙'; themeLabelEl.textContent=theme==='light'?'Светлая':'Тёмная'; logoIconEl.textContent='🚜';}
+    themeToggleBtn.addEventListener('click',toggleTheme); setMode('size'); updateHints();
+  </script>
+</body>
+</html>
