@@ -3,7 +3,6 @@ import {
   DEFAULT_FILTERS,
   DEFAULT_SETTINGS,
   EXPENSE_CATEGORIES,
-  HOME_PERIODS,
   ORDER_STATUSES,
   RELATION_TYPES,
   REPORT_PERIODS,
@@ -42,6 +41,11 @@ const state = {
   screen: "home",
   homePeriod: "today",
   filters: structuredClone(DEFAULT_FILTERS),
+  expandedCards: {
+    orders: {},
+    clients: {},
+    expenses: {},
+  },
   data: {
     clients: [],
     orders: [],
@@ -296,8 +300,6 @@ function renderHomeScreen() {
   const pendingOrders = getOrdersByStatus("pending");
   const recentActivity = sortByDateDesc(state.data.orders, (order) => order.updatedAt).slice(0, 6);
 
-  const periodSummary = getOperationalPeriodSummary(state.homePeriod);
-
   return `
     <section class="screen-stack">
       <section class="stats-grid">
@@ -310,39 +312,7 @@ function renderHomeScreen() {
       <section class="section-card">
         <div class="section-header">
           <div>
-            <p class="eyebrow">Сводка периода</p>
-            <h3>Сегодня, неделя, месяц</h3>
-          </div>
-          <div class="summary-switcher">
-            ${HOME_PERIODS.map(
-              (period) => `
-                <button class="chip-button ${state.homePeriod === period.value ? "is-active" : ""}" type="button" data-home-period="${period.value}">
-                  ${period.label}
-                </button>
-              `,
-            ).join("")}
-          </div>
-        </div>
-
-        <div class="report-grid">
-          <div class="data-item">
-            <span class="muted-label">Доход</span>
-            <strong>${formatCurrency(periodSummary.income)}</strong>
-          </div>
-          <div class="data-item">
-            <span class="muted-label">Расход</span>
-            <strong>${formatCurrency(periodSummary.expense)}</strong>
-          </div>
-          <div class="data-item">
-            <span class="muted-label">Чистая прибыль</span>
-            <strong>${formatCurrency(periodSummary.netProfit)}</strong>
-          </div>
-        </div>
-      </section>
-
-      <section class="section-card">
-        <div class="section-header">
-          <div>
+            <p class="eyebrow">Главное</p>
             <h3>Последние заказы</h3>
           </div>
           <button class="ghost-button" type="button" data-go-screen="orders">Все заказы</button>
@@ -370,7 +340,7 @@ function renderOrdersScreen() {
           <div class="page-title">
             <p class="eyebrow">Основной рабочий экран</p>
             <h2>Заказы</h2>
-            <p>Статусы, фильтры, быстрые действия и мгновенный переход в карточку клиента или заказа.</p>
+            <p>Статусы, фильтры и быстрый переход в карточку клиента или заказа.</p>
           </div>
           <div class="inline-actions">
             <button class="ghost-button" type="button" data-action="open-calculator">Калькулятор</button>
@@ -710,45 +680,53 @@ function renderQuickActionCard(title, description, action) {
 function renderOrderCard(order, options = {}) {
   const client = getClientById(order.clientId);
   const source = order.source || client?.source || "Не указан";
+  const isExpanded = isCardExpanded("orders", order.id);
   const relationBadge =
     client?.linkedClientId && client?.relationType
       ? `<span class="tiny-pill">Связь: ${escapeHtml(client.relationType)}</span>`
       : "";
 
   return `
-    <article class="record-card">
-      <div class="record-title-row">
+    <article class="record-card is-collapsible ${isExpanded ? "is-expanded" : "is-collapsed"}" data-card-type="orders" data-card-id="${order.id}">
+      <button class="record-toggle" type="button" data-toggle-card="orders" data-card-id="${order.id}" aria-expanded="${isExpanded ? "true" : "false"}">
+        <div class="record-title-row">
+          <div>
+            <h4>${escapeHtml(client?.name || "Клиент удален")}</h4>
+            <p>${escapeHtml(order.city || client?.city || "Город не указан")}</p>
+          </div>
+          <span class="status-badge status-${order.status}">${getStatusLabel(order.status)}</span>
+        </div>
+      </button>
+
+      <div class="record-details" ${isExpanded ? "" : "hidden"}>
         <div>
-          <h4>${escapeHtml(client?.name || "Клиент удален")}</h4>
-          <p>${escapeHtml(order.city || client?.city || "Город не указан")} • ${escapeHtml(order.workType)}</p>
+          <div class="pill-row">
+            <span class="info-pill">${escapeHtml(order.workType)}</span>
+            <span class="info-pill">${formatCurrency(order.amount)}</span>
+            <span class="tiny-pill">${escapeHtml(source)}</span>
+            ${relationBadge}
+          </div>
         </div>
-        <span class="status-badge status-${order.status}">${getStatusLabel(order.status)}</span>
-      </div>
 
-      <div class="pill-row">
-        <span class="info-pill">${formatCurrency(order.amount)}</span>
-        <span class="tiny-pill">${escapeHtml(source)}</span>
-        ${relationBadge}
-      </div>
-
-      <div class="record-data-grid">
-        <div class="data-item">
-          <span class="muted-label">План</span>
-          <strong>${formatDate(order.plannedDate)}</strong>
+        <div class="record-data-grid">
+          <div class="data-item">
+            <span class="muted-label">План</span>
+            <strong>${formatDate(order.plannedDate)}</strong>
+          </div>
+          <div class="data-item">
+            <span class="muted-label">Выполнено</span>
+            <strong>${formatDate(order.completedDate)}</strong>
+          </div>
         </div>
-        <div class="data-item">
-          <span class="muted-label">Выполнено</span>
-          <strong>${formatDate(order.completedDate)}</strong>
+
+        <p class="field-copy">${escapeHtml(order.comment || "Комментарий не указан")}</p>
+
+        <div class="inline-actions">
+          ${order.status !== "done" ? `<button class="primary-button" type="button" data-action="complete-order" data-order-id="${order.id}">Выполнить</button>` : ""}
+          <button class="ghost-button" type="button" data-action="edit-order" data-order-id="${order.id}">Редактировать</button>
+          ${order.status !== "cancelled" ? `<button class="danger-button" type="button" data-action="cancel-order" data-order-id="${order.id}">Отменить</button>` : ""}
+          ${!options.compact ? `<button class="chip-button" type="button" data-action="view-client" data-client-id="${order.clientId}">Клиент</button>` : ""}
         </div>
-      </div>
-
-      <p class="field-copy">${escapeHtml(order.comment || "Комментарий не указан")}</p>
-
-      <div class="inline-actions">
-        ${order.status !== "done" ? `<button class="primary-button" type="button" data-action="complete-order" data-order-id="${order.id}">Выполнить</button>` : ""}
-        <button class="ghost-button" type="button" data-action="edit-order" data-order-id="${order.id}">Редактировать</button>
-        ${order.status !== "cancelled" ? `<button class="danger-button" type="button" data-action="cancel-order" data-order-id="${order.id}">Отменить</button>` : ""}
-        ${!options.compact ? `<button class="chip-button" type="button" data-action="view-client" data-client-id="${order.clientId}">Клиент</button>` : ""}
       </div>
     </article>
   `;
@@ -757,65 +735,83 @@ function renderOrderCard(order, options = {}) {
 function renderClientCard(client) {
   const orderSummary = getClientOrderSummary(client.id);
   const linkedClient = getClientById(client.linkedClientId);
+  const isExpanded = isCardExpanded("clients", client.id);
 
   return `
-    <article class="record-card">
-      <div class="record-title-row">
+    <article class="record-card is-collapsible ${isExpanded ? "is-expanded" : "is-collapsed"}" data-card-type="clients" data-card-id="${client.id}">
+      <button class="record-toggle" type="button" data-toggle-card="clients" data-card-id="${client.id}" aria-expanded="${isExpanded ? "true" : "false"}">
+        <div class="record-title-row">
+          <div>
+            <h4>${escapeHtml(client.name)}</h4>
+            <p>${escapeHtml(client.city || "Город не указан")}</p>
+          </div>
+          <span class="tiny-pill">${escapeHtml(client.source || "Источник не указан")}</span>
+        </div>
+      </button>
+
+      <div class="record-details" ${isExpanded ? "" : "hidden"}>
         <div>
-          <h4>${escapeHtml(client.name)}</h4>
-          <p>${escapeHtml(client.phone || "Номер не указан")} • ${escapeHtml(client.city || "Город не указан")}</p>
+          <div class="pill-row">
+            <span class="info-pill">${escapeHtml(client.phone || "Номер не указан")}</span>
+            ${
+              linkedClient
+                ? `<span class="info-pill">Через: ${escapeHtml(linkedClient.name)}</span>`
+                : `<span class="info-pill">${client.hasOwnPhone ? "Есть свой номер" : "Без номера"}</span>`
+            }
+            ${client.relationType ? `<span class="tiny-pill">${escapeHtml(client.relationType)}</span>` : ""}
+          </div>
         </div>
-        <span class="tiny-pill">${escapeHtml(client.source || "Источник не указан")}</span>
-      </div>
 
-      <div class="pill-row">
-        ${
-          linkedClient
-            ? `<span class="info-pill">Через: ${escapeHtml(linkedClient.name)}</span>`
-            : `<span class="info-pill">${client.hasOwnPhone ? "Есть свой номер" : "Без номера"}</span>`
-        }
-        ${client.relationType ? `<span class="tiny-pill">${escapeHtml(client.relationType)}</span>` : ""}
-      </div>
+        <p class="field-copy">${escapeHtml(client.notes || "Без заметки")}</p>
 
-      <p class="field-copy">${escapeHtml(client.notes || "Без заметки")}</p>
-
-      <div class="order-stats">
-        <div class="data-item">
-          <span class="muted-label">Заказов</span>
-          <strong>${formatNumber(orderSummary.total)}</strong>
+        <div class="order-stats">
+          <div class="data-item">
+            <span class="muted-label">Заказов</span>
+            <strong>${formatNumber(orderSummary.total)}</strong>
+          </div>
+          <div class="data-item">
+            <span class="muted-label">Выполнено</span>
+            <strong>${formatNumber(orderSummary.done)}</strong>
+          </div>
+          <div class="data-item">
+            <span class="muted-label">Сумма</span>
+            <strong>${formatCurrency(orderSummary.doneAmount)}</strong>
+          </div>
         </div>
-        <div class="data-item">
-          <span class="muted-label">Выполнено</span>
-          <strong>${formatNumber(orderSummary.done)}</strong>
-        </div>
-        <div class="data-item">
-          <span class="muted-label">Сумма</span>
-          <strong>${formatCurrency(orderSummary.doneAmount)}</strong>
-        </div>
-      </div>
 
-      <div class="inline-actions">
-        <button class="primary-button" type="button" data-action="view-client" data-client-id="${client.id}">Открыть</button>
-        <button class="ghost-button" type="button" data-action="edit-client" data-client-id="${client.id}">Редактировать</button>
-        <button class="chip-button" type="button" data-action="new-order-for-client" data-client-id="${client.id}">Новый заказ</button>
+        <div class="inline-actions">
+          <button class="primary-button" type="button" data-action="view-client" data-client-id="${client.id}">Открыть</button>
+          <button class="ghost-button" type="button" data-action="edit-client" data-client-id="${client.id}">Редактировать</button>
+          <button class="chip-button" type="button" data-action="new-order-for-client" data-client-id="${client.id}">Новый заказ</button>
+        </div>
       </div>
     </article>
   `;
 }
 
 function renderExpenseCard(expense) {
+  const isExpanded = isCardExpanded("expenses", expense.id);
+
   return `
-    <article class="record-card">
-      <div class="record-title-row">
-        <div>
-          <h4>${escapeHtml(expense.category)}</h4>
-          <p>${formatDate(expense.date)} • ${escapeHtml(expense.comment || "Без комментария")}</p>
+    <article class="record-card is-collapsible ${isExpanded ? "is-expanded" : "is-collapsed"}" data-card-type="expenses" data-card-id="${expense.id}">
+      <button class="record-toggle" type="button" data-toggle-card="expenses" data-card-id="${expense.id}" aria-expanded="${isExpanded ? "true" : "false"}">
+        <div class="record-title-row">
+          <div>
+            <h4>${escapeHtml(expense.category)}</h4>
+            <p>${formatDate(expense.date)}</p>
+          </div>
+          <span class="status-badge status-pending">${formatCurrency(expense.amount)}</span>
         </div>
-        <span class="status-badge status-pending">${formatCurrency(expense.amount)}</span>
-      </div>
-      <div class="inline-actions">
-        <button class="ghost-button" type="button" data-action="edit-expense" data-expense-id="${expense.id}">Редактировать</button>
-        <button class="danger-button" type="button" data-action="delete-expense" data-expense-id="${expense.id}">Удалить</button>
+      </button>
+
+      <div class="record-details" ${isExpanded ? "" : "hidden"}>
+        <div>
+          <p class="field-copy">${escapeHtml(expense.comment || "Без комментария")}</p>
+        </div>
+        <div class="inline-actions">
+          <button class="ghost-button" type="button" data-action="edit-expense" data-expense-id="${expense.id}">Редактировать</button>
+          <button class="danger-button" type="button" data-action="delete-expense" data-expense-id="${expense.id}">Удалить</button>
+        </div>
       </div>
     </article>
   `;
@@ -888,6 +884,13 @@ function bindScreenEvents() {
 
   appContent.querySelectorAll("[data-action]").forEach((button) => {
     button.addEventListener("click", () => handleAction(button.dataset.action, button.dataset));
+  });
+
+  appContent.querySelectorAll("[data-toggle-card]").forEach((button) => {
+    button.addEventListener("click", () => {
+      toggleCardExpansion(button.dataset.toggleCard, button.dataset.cardId);
+      render();
+    });
   });
 
   bindFilterInputs();
@@ -1280,6 +1283,7 @@ function openClientDetails(clientId) {
 
 function openClientForm({ clientId } = {}) {
   const client = clientId ? getClientById(clientId) : null;
+  const canPickContact = supportsContactPicker();
 
   openSheet({
     kicker: client ? "Редактирование клиента" : "Новый клиент",
@@ -1294,6 +1298,9 @@ function openClientForm({ clientId } = {}) {
           <div class="field">
             <label for="clientPhoneInput">Телефон</label>
             <input id="clientPhoneInput" class="text-input" type="tel" inputmode="tel" value="${escapeHtml(client?.phone || "")}" placeholder="+7 (999) 123-45-67" />
+            <button class="ghost-button contact-picker-button" type="button" id="clientPickContactButton" ${canPickContact ? "" : "disabled"}>
+              ${canPickContact ? "Выбрать из контактов" : "Контакты недоступны"}
+            </button>
           </div>
           <div class="field">
             <label for="clientCityInput">Город / село</label>
@@ -1396,6 +1403,9 @@ function openClientForm({ clientId } = {}) {
       const relationFields = sheetBody.querySelector("#clientRelationFields");
       const sourceSelect = sheetBody.querySelector("#clientSourceSelect");
       const referralField = sheetBody.querySelector("#clientReferralField");
+      const clientNameInput = sheetBody.querySelector("#clientNameInput");
+      const clientPhoneInput = sheetBody.querySelector("#clientPhoneInput");
+      const clientPickContactButton = sheetBody.querySelector("#clientPickContactButton");
 
       linkModeInput.addEventListener("change", () => {
         relationFields.style.display = linkModeInput.checked ? "" : "none";
@@ -1404,6 +1414,12 @@ function openClientForm({ clientId } = {}) {
       sourceSelect.addEventListener("change", () => {
         const shouldShow = ["Знакомые", "Через соседа"].includes(sourceSelect.value);
         referralField.style.display = shouldShow ? "" : "none";
+      });
+
+      bindContactPickerButton({
+        button: clientPickContactButton,
+        nameInput: clientNameInput,
+        phoneInput: clientPhoneInput,
       });
 
       form.addEventListener("submit", async (event) => {
@@ -1451,6 +1467,7 @@ function openOrderForm({ orderId, clientId } = {}) {
   const order = orderId ? state.data.orders.find((item) => item.id === orderId) : null;
   const selectedClient = order ? getClientById(order.clientId) : getClientById(clientId);
   const defaultClientMode = order?.clientId || clientId ? "existing" : "new";
+  const canPickContact = supportsContactPicker();
 
   openSheet({
     kicker: order ? "Редактирование заказа" : "Новый заказ",
@@ -1478,6 +1495,14 @@ function openOrderForm({ orderId, clientId } = {}) {
             </select>
           </div>
 
+          <div id="existingClientPhoneField" class="field" style="${defaultClientMode === "existing" ? "" : "display:none;"}">
+            <label for="orderExistingClientPhoneInput">Телефон клиента</label>
+            <input id="orderExistingClientPhoneInput" class="text-input" type="tel" inputmode="tel" value="${escapeHtml(selectedClient?.phone || "")}" placeholder="+7 (999) 123-45-67" />
+            <button class="ghost-button contact-picker-button" type="button" id="orderExistingClientPickContactButton" ${canPickContact ? "" : "disabled"}>
+              ${canPickContact ? "Выбрать из контактов" : "Контакты недоступны"}
+            </button>
+          </div>
+
           <div id="newClientFields" class="sheet-section" style="${defaultClientMode === "new" ? "" : "display:none;"}">
             <div class="form-grid">
               <div class="field">
@@ -1487,6 +1512,9 @@ function openOrderForm({ orderId, clientId } = {}) {
               <div class="field">
                 <label for="orderClientPhoneInput">Телефон</label>
                 <input id="orderClientPhoneInput" class="text-input" type="tel" inputmode="tel" value="${escapeHtml(selectedClient?.phone || "")}" placeholder="+7 (999) 123-45-67" />
+                <button class="ghost-button contact-picker-button" type="button" id="orderNewClientPickContactButton" ${canPickContact ? "" : "disabled"}>
+                  ${canPickContact ? "Выбрать из контактов" : "Контакты недоступны"}
+                </button>
               </div>
               <div class="field">
                 <label for="orderClientCityInlineInput">Город / село</label>
@@ -1647,6 +1675,7 @@ function openOrderForm({ orderId, clientId } = {}) {
       const existingClientModeButton = sheetBody.querySelector("#existingClientModeButton");
       const newClientModeButton = sheetBody.querySelector("#newClientModeButton");
       const existingClientField = sheetBody.querySelector("#existingClientField");
+      const existingClientPhoneField = sheetBody.querySelector("#existingClientPhoneField");
       const newClientFields = sheetBody.querySelector("#newClientFields");
       const toggleOrderClientExtraButton = sheetBody.querySelector("#toggleOrderClientExtraButton");
       const orderClientExtraFields = sheetBody.querySelector("#orderClientExtraFields");
@@ -1656,6 +1685,11 @@ function openOrderForm({ orderId, clientId } = {}) {
       const relationFields = sheetBody.querySelector("#orderClientRelationFields");
       const sourceInlineSelect = sheetBody.querySelector("#orderClientSourceInlineSelect");
       const referralField = sheetBody.querySelector("#orderClientReferralField");
+      const existingClientPhoneInput = sheetBody.querySelector("#orderExistingClientPhoneInput");
+      const existingClientPickContactButton = sheetBody.querySelector("#orderExistingClientPickContactButton");
+      const newClientNameInput = sheetBody.querySelector("#orderClientNameInput");
+      const newClientPhoneInput = sheetBody.querySelector("#orderClientPhoneInput");
+      const newClientPickContactButton = sheetBody.querySelector("#orderNewClientPickContactButton");
       let clientMode = defaultClientMode;
 
       statusSelect.addEventListener("change", () => {
@@ -1683,6 +1717,7 @@ function openOrderForm({ orderId, clientId } = {}) {
       clientSelect.addEventListener("change", () => {
         const currentClient = getClientById(clientSelect.value);
         if (currentClient) {
+          existingClientPhoneInput.value = currentClient.phone || "";
           cityInput.value = currentClient.city || cityInput.value;
           addressInput.value = currentClient.address || addressInput.value;
         }
@@ -1700,6 +1735,18 @@ function openOrderForm({ orderId, clientId } = {}) {
           referralField.style.display = shouldShow ? "" : "none";
         });
       }
+
+      bindContactPickerButton({
+        button: existingClientPickContactButton,
+        nameInput: null,
+        phoneInput: existingClientPhoneInput,
+      });
+
+      bindContactPickerButton({
+        button: newClientPickContactButton,
+        nameInput: newClientNameInput,
+        phoneInput: newClientPhoneInput,
+      });
 
       syncClientMode();
 
@@ -1739,6 +1786,16 @@ function openOrderForm({ orderId, clientId } = {}) {
 
           await putRecord(STORE_NAMES.clients, currentClient);
           selectedClientId = currentClient.id;
+        } else if (currentClient) {
+          const updatedPhone = existingClientPhoneInput.value.trim();
+          if (updatedPhone !== (currentClient.phone || "")) {
+            currentClient = {
+              ...currentClient,
+              phone: updatedPhone,
+              updatedAt: nowIso(),
+            };
+            await putRecord(STORE_NAMES.clients, currentClient);
+          }
         }
 
         if (!selectedClientId || !currentClient) {
@@ -1786,9 +1843,56 @@ function openOrderForm({ orderId, clientId } = {}) {
         existingClientModeButton.classList.toggle("is-active", isExistingMode);
         newClientModeButton.classList.toggle("is-active", !isExistingMode);
         existingClientField.style.display = isExistingMode ? "" : "none";
+        existingClientPhoneField.style.display = isExistingMode ? "" : "none";
         newClientFields.style.display = isExistingMode ? "none" : "";
       }
     },
+  });
+}
+
+function isCardExpanded(type, id) {
+  return Boolean(state.expandedCards[type]?.[id]);
+}
+
+function toggleCardExpansion(type, id) {
+  if (!state.expandedCards[type]) {
+    state.expandedCards[type] = {};
+  }
+
+  state.expandedCards[type][id] = !state.expandedCards[type][id];
+}
+
+function supportsContactPicker() {
+  return Boolean(navigator.contacts?.select);
+}
+
+function bindContactPickerButton({ button, nameInput, phoneInput }) {
+  if (!button || !phoneInput || !supportsContactPicker()) {
+    return;
+  }
+
+  button.addEventListener("click", async () => {
+    try {
+      const [contact] = await navigator.contacts.select(["name", "tel"], { multiple: false });
+      if (!contact) {
+        return;
+      }
+
+      const selectedPhone = Array.isArray(contact.tel) ? contact.tel.find(Boolean) : "";
+      const selectedName = Array.isArray(contact.name) ? contact.name.find(Boolean) : "";
+
+      if (selectedPhone) {
+        phoneInput.value = selectedPhone;
+      }
+
+      if (nameInput && !nameInput.value.trim() && selectedName) {
+        nameInput.value = selectedName;
+      }
+    } catch (error) {
+      if (error?.name !== "AbortError") {
+        toast("Не удалось открыть контакты");
+      }
+    }
   });
 }
 

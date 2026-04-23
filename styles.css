@@ -4,7 +4,7 @@
   --bg-gradient: radial-gradient(circle at top left, #1b9fff 0%, #101016 42%, #050509 100%);
   --panel: rgba(15, 15, 20, 0.88);
   --panel-strong: rgba(14, 16, 24, 0.96);
-  --panel-border: rgba(255, 255, 255, 0.08);
+  --panel-border: rgba(255, 255, 255, 0.14);
   --text-primary: #ffffff;
   --text-secondary: #9ca3af;
   --text-dim: #6b7280;
@@ -36,7 +36,7 @@ body.light-theme {
   --bg-gradient: radial-gradient(circle at top left, #9fd6ff 0%, #f8fbff 42%, #e5edf7 100%);
   --panel: rgba(255, 255, 255, 0.84);
   --panel-strong: rgba(255, 255, 255, 0.97);
-  --panel-border: rgba(15, 23, 42, 0.09);
+  --panel-border: rgba(15, 23, 42, 0.14);
   --text-primary: #111827;
   --text-secondary: #4b5563;
   --text-dim: #6b7280;
@@ -495,7 +495,13 @@ svg {
 
 .record-card {
   display: grid;
-  gap: 14px;
+  gap: 10px;
+  padding: 14px 15px;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+body.light-theme .record-card {
+  border-color: rgba(15, 23, 42, 0.14);
 }
 
 .record-title-row {
@@ -520,6 +526,45 @@ svg {
   color: var(--text-secondary);
 }
 
+.record-toggle {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.record-toggle .record-title-row {
+  align-items: center;
+}
+
+.record-toggle h4 {
+  font-size: 0.98rem;
+}
+
+.record-details {
+  display: grid;
+  gap: 10px;
+}
+
+.record-card.is-collapsible.is-collapsed .record-details {
+  display: none;
+}
+
+.record-card.is-collapsible .record-toggle::after {
+  content: "Подробнее";
+  display: inline-flex;
+  align-items: center;
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.record-card.is-collapsible.is-expanded .record-toggle::after {
+  content: "Скрыть";
+}
+
 .record-data-grid,
 .form-grid,
 .filters-grid,
@@ -533,10 +578,10 @@ svg {
 .data-item {
   display: grid;
   gap: 5px;
-  padding: 12px;
+  padding: 10px 12px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.045);
-  border: 1px solid rgba(148, 163, 184, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.18);
 }
 
 .data-item strong {
@@ -592,6 +637,10 @@ svg {
 .fieldset-title {
   font-size: 0.85rem;
   color: var(--text-secondary);
+}
+
+.contact-picker-button {
+  justify-content: center;
 }
 
 .text-input,
