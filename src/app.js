@@ -45,6 +45,9 @@ const state = {
     clients: {},
     expenses: {},
   },
+  ui: {
+    orderFiltersOpen: false,
+  },
   data: {
     clients: [],
     orders: [],
@@ -334,19 +337,8 @@ function renderOrdersScreen() {
 
   return `
     <section class="screen-stack">
-      <section class="section-card search-card">
-        <div class="page-header">
-          <div class="page-title">
-            <p class="eyebrow">Основной рабочий экран</p>
-            <h2>Заказы</h2>
-          </div>
-          <div class="inline-actions">
-            <button class="ghost-button" type="button" data-action="open-calculator">Калькулятор</button>
-            <button class="primary-button" type="button" data-action="new-order">Новый</button>
-          </div>
-        </div>
-
-        <div class="segment-control">
+      <section class="orders-control-bar">
+        <div class="segment-control order-status-tabs">
           <button class="chip-button ${filters.status === "all" ? "is-active" : ""}" type="button" data-order-status="all">
             Все
           </button>
@@ -357,8 +349,19 @@ function renderOrdersScreen() {
               </button>
             `,
           ).join("")}
+          <button class="chip-button ${state.ui.orderFiltersOpen ? "is-active" : ""}" type="button" data-action="toggle-order-filters">
+            Фильтр
+          </button>
         </div>
+        <div class="inline-actions order-toolbar-actions">
+          <button class="primary-button" type="button" data-action="new-order">Новый</button>
+        </div>
+      </section>
 
+      ${
+        state.ui.orderFiltersOpen
+          ? `
+      <section class="section-card search-card">
         <div class="filters-grid">
           <div class="field">
             <label for="orderQueryInput">Поиск</label>
@@ -418,6 +421,9 @@ function renderOrdersScreen() {
           </div>
         </div>
       </section>
+          `
+          : ""
+      }
 
       ${renderOrderFunnel(orders, filters.status)}
     </section>
@@ -545,12 +551,12 @@ function renderReportsScreen() {
           </div>
         </div>
         <div class="report-grid">
-          ${renderBreakdownCard("По городам", report.breakdowns.cities)}
-          ${renderBreakdownCard("По источникам", report.breakdowns.sources)}
-          ${renderBreakdownCard("По типам работ", report.breakdowns.workTypes)}
-          ${renderBreakdownCard("По категориям расходов", report.breakdowns.expenseCategories)}
-          ${renderBreakdownCard("По дням", report.breakdowns.days)}
-          ${renderBreakdownCard("По клиентам", report.breakdowns.clients)}
+          ${renderBreakdownCard("По городам", report.breakdowns.cities, "city")}
+          ${renderBreakdownCard("По источникам", report.breakdowns.sources, "source")}
+          ${renderBreakdownCard("По типам работ", report.breakdowns.workTypes, "workType")}
+          ${renderBreakdownCard("По категориям расходов", report.breakdowns.expenseCategories, "expenseCategory")}
+          ${renderBreakdownCard("По дням", report.breakdowns.days, "day")}
+          ${renderBreakdownCard("По клиентам", report.breakdowns.clients, "client")}
         </div>
       </section>
 
@@ -708,15 +714,15 @@ function renderQuickActionCard(title, description, action) {
 function renderOrderCard(order, options = {}) {
   const client = getClientById(order.clientId);
   const source = order.source || client?.source || "Не указан";
-  const isExpanded = isCardExpanded("orders", order.id);
+  const isExpanded = options.forceExpanded || isCardExpanded("orders", order.id);
   const relationBadge =
     client?.linkedClientId && client?.relationType
       ? `<span class="tiny-pill">Связь: ${escapeHtml(client.relationType)}</span>`
       : "";
 
   return `
-    <article class="record-card is-collapsible ${isExpanded ? "is-expanded" : "is-collapsed"}" data-card-type="orders" data-card-id="${order.id}">
-      <button class="record-toggle" type="button" data-toggle-card="orders" data-card-id="${order.id}" aria-expanded="${isExpanded ? "true" : "false"}">
+    <article class="record-card is-collapsible ${options.forceExpanded ? "is-static" : ""} ${isExpanded ? "is-expanded" : "is-collapsed"}" data-card-type="orders" data-card-id="${order.id}">
+      <button class="record-toggle" type="button" ${options.forceExpanded ? "" : `data-toggle-card="orders" data-card-id="${order.id}"`} aria-expanded="${isExpanded ? "true" : "false"}">
         <div class="record-title-row">
           <div>
             <h4>${escapeHtml(client?.name || "Клиент удален")}</h4>
@@ -842,7 +848,7 @@ function renderExpenseCard(expense) {
   `;
 }
 
-function renderBreakdownCard(title, items) {
+function renderBreakdownCard(title, items, type = "") {
   return `
     <article class="report-card">
       <div class="report-header">
@@ -857,10 +863,10 @@ function renderBreakdownCard(title, items) {
                 .slice(0, 6)
                 .map(
                   (item) => `
-                    <div class="data-item">
+                    <button class="data-item report-breakdown-item" type="button" data-action="open-report-orders" data-report-type="${escapeHtml(type)}" data-report-label="${escapeHtml(item.label)}">
                       <span class="muted-label">${escapeHtml(item.label)}</span>
                       <strong>${item.isMoney ? formatCurrency(item.value) : formatNumber(item.value)}</strong>
-                    </div>
+                    </button>
                   `,
                 )
                 .join("")
@@ -906,18 +912,22 @@ function bindScreenEvents() {
     });
   });
 
-  appContent.querySelectorAll("[data-action]").forEach((button) => {
+  bindRecordInteractions(appContent);
+
+  bindFilterInputs();
+}
+
+function bindRecordInteractions(root) {
+  root.querySelectorAll("[data-action]").forEach((button) => {
     button.addEventListener("click", () => handleAction(button.dataset.action, button.dataset));
   });
 
-  appContent.querySelectorAll("[data-toggle-card]").forEach((button) => {
+  root.querySelectorAll("[data-toggle-card]").forEach((button) => {
     button.addEventListener("click", () => {
       toggleCardExpansion(button.dataset.toggleCard, button.dataset.cardId);
       render();
     });
   });
-
-  bindFilterInputs();
 }
 
 function bindFilterInputs() {
@@ -1087,6 +1097,17 @@ async function handleAction(action, payload) {
   if (action === "reset-order-filters") {
     state.filters.orders = { ...DEFAULT_FILTERS.orders };
     render();
+    return;
+  }
+
+  if (action === "toggle-order-filters") {
+    state.ui.orderFiltersOpen = !state.ui.orderFiltersOpen;
+    render();
+    return;
+  }
+
+  if (action === "open-report-orders") {
+    openReportOrdersSheet(payload.reportType, payload.reportLabel);
     return;
   }
 
@@ -1303,6 +1324,8 @@ function openClientDetails(clientId) {
         closeSheet();
         await archiveClient(client.id);
       });
+
+      bindRecordInteractions(sheetBody);
     },
   });
 }
@@ -1812,6 +1835,34 @@ function openClearDataSheet() {
   });
 }
 
+function openReportOrdersSheet(type, label) {
+  const orders = getReportBreakdownOrders(type, label);
+
+  openSheet({
+    kicker: "Отчет",
+    title: label || "Заказы",
+    body: `
+      <section class="sheet-section">
+        <div class="section-header">
+          <div>
+            <h3>${orders.length} ${pluralizeOrders(orders.length)}</h3>
+          </div>
+        </div>
+        <div class="list-stack">
+          ${
+            orders.length
+              ? orders.map((order) => renderOrderCard(order, { compact: true, forceExpanded: true })).join("")
+              : renderEmptyCard("Заказов нет", "В этом пункте нет выполненных заказов за выбранный период.")
+          }
+        </div>
+      </section>
+    `,
+    onBind: (sheetBody) => {
+      bindRecordInteractions(sheetBody);
+    },
+  });
+}
+
 async function markOrderDone(orderId) {
   const order = state.data.orders.find((item) => item.id === orderId);
   if (!order) {
@@ -2076,6 +2127,41 @@ function buildReportData() {
       ),
     },
   };
+}
+
+function getReportDoneOrders() {
+  const { period, fromDate, toDate } = state.filters.reports;
+  const range = getDateRange(period, fromDate, toDate);
+
+  return state.data.orders.filter(
+    (order) => order.status === "done" && isDateInRange(order.completedDate, range.from, range.to),
+  );
+}
+
+function getReportBreakdownOrders(type, label) {
+  const orders = getReportDoneOrders();
+
+  if (type === "city") {
+    return orders.filter((order) => (order.city || "Не указан") === label);
+  }
+
+  if (type === "source") {
+    return orders.filter((order) => (order.source || getClientById(order.clientId)?.source || "Не указан") === label);
+  }
+
+  if (type === "workType") {
+    return orders.filter((order) => (order.workType || "Не указан") === label);
+  }
+
+  if (type === "day") {
+    return orders.filter((order) => formatDate(order.completedDate) === label);
+  }
+
+  if (type === "client") {
+    return orders.filter((order) => (getClientById(order.clientId)?.name || "Клиент удален") === label);
+  }
+
+  return [];
 }
 
 function getFilteredExpensesForPeriod(from, to) {
