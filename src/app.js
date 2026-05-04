@@ -339,7 +339,6 @@ function renderOrdersScreen() {
           <div class="page-title">
             <p class="eyebrow">Основной рабочий экран</p>
             <h2>Заказы</h2>
-            <p>Статусы, фильтры и быстрый переход в карточку клиента или заказа.</p>
           </div>
           <div class="inline-actions">
             <button class="ghost-button" type="button" data-action="open-calculator">Калькулятор</button>
@@ -420,18 +419,7 @@ function renderOrdersScreen() {
         </div>
       </section>
 
-      <section class="section-card">
-        <div class="section-header">
-          <div>
-            <p class="eyebrow">Список</p>
-            <h3>${filters.status === "all" ? "Все заказы" : ORDER_STATUSES.find((status) => status.value === filters.status)?.label || "Заказы"}</h3>
-          </div>
-          <span class="info-pill">${orders.length} ${pluralizeOrders(orders.length)}</span>
-        </div>
-        <div class="list-stack">
-          ${orders.length ? orders.map((order) => renderOrderCard(order)).join("") : renderEmptyCard("Ничего не найдено", "Измените фильтры или добавьте новый заказ через кнопку +.")}
-        </div>
-      </section>
+      ${renderOrderFunnel(orders, filters.status)}
     </section>
   `;
 }
@@ -446,7 +434,6 @@ function renderClientsScreen() {
           <div class="page-title">
             <p class="eyebrow">Единая база</p>
             <h2>Клиенты</h2>
-            <p>Поиск по имени, телефону и городу, с поддержкой клиентов без номера и связей через других клиентов.</p>
           </div>
           <div class="inline-actions">
             <button class="ghost-button" type="button" data-action="open-calculator">Калькулятор</button>
@@ -505,7 +492,6 @@ function renderReportsScreen() {
           <div class="page-title">
             <p class="eyebrow">Аналитика</p>
             <h2>Отчеты</h2>
-            <p>Доход учитывается только по выполненным заказам и только по дате выполнения, как указано в бизнес-логике.</p>
           </div>
           <div class="inline-actions">
             <button class="ghost-button" type="button" data-action="open-calculator">Калькулятор</button>
@@ -594,7 +580,6 @@ function renderSettingsScreen() {
           <div class="page-title">
             <p class="eyebrow">Сервис и безопасность данных</p>
             <h2>Настройки</h2>
-            <p>Экспорт, импорт, резервная копия, тема, сведения о приложении и подготовка к будущей интеграции калькулятора.</p>
           </div>
         </div>
       </section>
@@ -603,7 +588,6 @@ function renderSettingsScreen() {
         <div class="settings-header">
           <div>
             <h3>Данные</h3>
-            <p>Полный JSON-экспорт, CSV по сущностям и импорт резервной копии.</p>
           </div>
         </div>
         <div class="settings-actions">
@@ -623,7 +607,6 @@ function renderSettingsScreen() {
         <div class="settings-header">
           <div>
             <h3>Оформление и режимы</h3>
-            <p>Тема переключается локально и сохраняется в настройках устройства.</p>
           </div>
         </div>
         <div class="settings-actions">
@@ -637,7 +620,6 @@ function renderSettingsScreen() {
         <div class="settings-header">
           <div>
             <h3>О приложении</h3>
-            <p>Сборка сделана как offline-first PWA с IndexedDB и чистым разделением логики, интерфейса и хранения данных.</p>
           </div>
         </div>
         <ul class="settings-list">
@@ -669,6 +651,40 @@ function renderMetricCard(title, value, meta, tone = "plain", isCount = false) {
       <strong>${isCount ? formatNumber(value) : formatCurrency(value)}</strong>
       <span class="status-badge ${className}">${escapeHtml(meta)}</span>
     </article>
+  `;
+}
+
+function renderOrderFunnel(orders, activeStatus) {
+  const statuses = activeStatus === "all" ? ORDER_STATUSES : ORDER_STATUSES.filter((status) => status.value === activeStatus);
+
+  if (!orders.length) {
+    return `
+      <section class="section-card">
+        ${renderEmptyCard("Ничего не найдено", "Измените фильтры или добавьте новый заказ через кнопку +.")}
+      </section>
+    `;
+  }
+
+  return `
+    <section class="order-funnel">
+      ${statuses
+        .map((status) => {
+          const statusOrders = orders.filter((order) => order.status === status.value);
+
+          return `
+            <section class="funnel-list status-${status.value}">
+              <div class="funnel-header">
+                <h3>${status.label}</h3>
+                <span class="status-badge status-${status.value}">${statusOrders.length}</span>
+              </div>
+              <div class="list-stack">
+                ${statusOrders.length ? statusOrders.map((order) => renderOrderCard(order)).join("") : `<div class="funnel-empty">Пусто</div>`}
+              </div>
+            </section>
+          `;
+        })
+        .join("")}
+    </section>
   `;
 }
 
@@ -832,7 +848,6 @@ function renderBreakdownCard(title, items) {
       <div class="report-header">
         <div>
           <h3>${title}</h3>
-          <p>${items.length ? "Актуальная выборка за выбранный период" : "Нет данных для этого периода"}</p>
         </div>
       </div>
       <div class="table-like-list">
