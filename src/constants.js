@@ -64,6 +64,7 @@ export const DEFAULT_SETTINGS = {
   theme: "dark",
   calculatorReady: true,
   lastBackupAt: "",
+  clientSources: CLIENT_SOURCES,
 };
 
 export const DEFAULT_FILTERS = {

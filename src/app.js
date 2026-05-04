@@ -47,6 +47,7 @@ const state = {
   },
   ui: {
     orderFiltersOpen: false,
+    clientFiltersOpen: false,
   },
   data: {
     clients: [],
@@ -400,7 +401,7 @@ function renderOrdersScreen() {
             <label for="orderSourceFilter">Источник</label>
             <select id="orderSourceFilter" class="select-input">
               <option value="">Все источники</option>
-              ${CLIENT_SOURCES.map(
+              ${getClientSources().map(
                 (source) => `
                   <option value="${source}" ${filters.source === source ? "selected" : ""}>${source}</option>
                 `,
@@ -435,18 +436,17 @@ function renderClientsScreen() {
 
   return `
     <section class="screen-stack">
-      <section class="section-card search-card">
-        <div class="page-header">
-          <div class="page-title">
-            <p class="eyebrow">Единая база</p>
-            <h2>Клиенты</h2>
-          </div>
-          <div class="inline-actions">
-            <button class="ghost-button" type="button" data-action="open-calculator">Калькулятор</button>
-            <button class="primary-button" type="button" data-action="new-client">Добавить</button>
-          </div>
+      <section class="orders-control-bar">
+        <div class="inline-actions order-toolbar-actions">
+          <button class="ghost-button" type="button" data-action="toggle-client-filters">${state.ui.clientFiltersOpen ? "Скрыть фильтр" : "Фильтр"}</button>
+          <button class="primary-button" type="button" data-action="new-client">Добавить</button>
         </div>
+      </section>
 
+      ${
+        state.ui.clientFiltersOpen
+          ? `
+      <section class="section-card search-card">
         <div class="filters-grid">
           <div class="field">
             <label for="clientQueryInput">Поиск</label>
@@ -461,7 +461,7 @@ function renderClientsScreen() {
             <label for="clientSourceFilter">Источник</label>
             <select id="clientSourceFilter" class="select-input">
               <option value="">Все источники</option>
-              ${CLIENT_SOURCES.map(
+              ${getClientSources().map(
                 (source) => `
                   <option value="${source}" ${state.filters.clients.source === source ? "selected" : ""}>${source}</option>
                 `,
@@ -470,6 +470,9 @@ function renderClientsScreen() {
           </div>
         </div>
       </section>
+          `
+          : ""
+      }
 
       <section class="section-card">
         <div class="section-header">
@@ -619,6 +622,30 @@ function renderSettingsScreen() {
           <button class="chip-button" type="button" data-action="toggle-theme">Тема: ${settings.theme === "dark" ? "Темная" : "Светлая"}</button>
           <button class="chip-button" type="button" data-action="open-calculator">Калькулятор</button>
           <button class="chip-button" type="button" data-action="install-pwa">Установить PWA</button>
+        </div>
+      </section>
+
+      <section class="settings-card">
+        <div class="settings-header">
+          <div>
+            <h3>Источники</h3>
+          </div>
+          <button class="primary-button" type="button" data-action="add-source">Добавить</button>
+        </div>
+        <div class="source-list">
+          ${getClientSources()
+            .map(
+              (source) => `
+                <div class="source-row">
+                  <strong>${escapeHtml(source)}</strong>
+                  <div class="inline-actions">
+                    <button class="ghost-button" type="button" data-action="edit-source" data-source="${escapeHtml(source)}">Изменить</button>
+                    <button class="danger-button" type="button" data-action="delete-source" data-source="${escapeHtml(source)}">Удалить</button>
+                  </div>
+                </div>
+              `,
+            )
+            .join("")}
         </div>
       </section>
 
@@ -1106,8 +1133,29 @@ async function handleAction(action, payload) {
     return;
   }
 
+  if (action === "toggle-client-filters") {
+    state.ui.clientFiltersOpen = !state.ui.clientFiltersOpen;
+    render();
+    return;
+  }
+
   if (action === "open-report-orders") {
     openReportOrdersSheet(payload.reportType, payload.reportLabel);
+    return;
+  }
+
+  if (action === "add-source") {
+    openSourceForm();
+    return;
+  }
+
+  if (action === "edit-source") {
+    openSourceForm({ source: payload.source });
+    return;
+  }
+
+  if (action === "delete-source") {
+    openDeleteSourceSheet(payload.source);
     return;
   }
 
@@ -1360,7 +1408,7 @@ function openClientForm({ clientId } = {}) {
           <div class="field">
             <label for="clientSourceSelect">Откуда пришел</label>
             <select id="clientSourceSelect" class="select-input">
-              ${CLIENT_SOURCES.map(
+              ${getClientSourcesForValue(client?.source).map(
                 (source) => `
                   <option value="${source}" ${client?.source === source ? "selected" : ""}>${source}</option>
                 `,
@@ -1441,7 +1489,7 @@ function openOrderForm({ orderId, clientId } = {}) {
   const order = orderId ? state.data.orders.find((item) => item.id === orderId) : null;
   const selectedClient = order ? getClientById(order.clientId) : getClientById(clientId);
   const canPickContact = supportsContactPicker();
-  const sourceValue = order?.source || selectedClient?.source || CLIENT_SOURCES[0];
+  const sourceValue = order?.source || selectedClient?.source || getClientSources()[0];
 
   openSheet({
     kicker: order ? "Редактирование заказа" : "Новый заказ",
@@ -1473,7 +1521,7 @@ function openOrderForm({ orderId, clientId } = {}) {
           <div class="field">
             <label for="orderSourceSelect">Откуда пришел</label>
             <select id="orderSourceSelect" class="select-input">
-              ${CLIENT_SOURCES.map(
+              ${getClientSourcesForValue(sourceValue).map(
                 (source) => `
                   <option value="${source}" ${sourceValue === source ? "selected" : ""}>${source}</option>
                 `,
@@ -1835,6 +1883,69 @@ function openClearDataSheet() {
   });
 }
 
+function openSourceForm({ source = "" } = {}) {
+  openSheet({
+    kicker: source ? "Источник" : "Новый источник",
+    title: source ? "Изменить источник" : "Добавить источник",
+    body: `
+      <form id="sourceForm" class="sheet-section">
+        <div class="field">
+          <label for="sourceNameInput">Название</label>
+          <input id="sourceNameInput" class="text-input" type="text" required value="${escapeHtml(source)}" />
+        </div>
+        <div class="sheet-footer">
+          <button class="primary-button" type="submit">Сохранить</button>
+        </div>
+      </form>
+    `,
+    onBind: (sheetBody) => {
+      sheetBody.querySelector("#sourceForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const nextSource = sheetBody.querySelector("#sourceNameInput").value.trim();
+
+        if (!nextSource) {
+          toast("Укажите источник");
+          return;
+        }
+
+        const isSaved = await saveClientSource(source, nextSource);
+        if (!isSaved) {
+          return;
+        }
+
+        closeSheet();
+        render();
+        toast(source ? "Источник изменен" : "Источник добавлен");
+      });
+    },
+  });
+}
+
+function openDeleteSourceSheet(source) {
+  openSheet({
+    kicker: "Подтверждение",
+    title: "Удалить источник?",
+    body: `
+      <section class="sheet-section">
+        <div class="helper-banner">${escapeHtml(source)}</div>
+        <div class="settings-actions">
+          <button class="danger-button" type="button" id="confirmDeleteSourceButton">Удалить</button>
+          <button class="ghost-button" type="button" id="cancelDeleteSourceButton">Отмена</button>
+        </div>
+      </section>
+    `,
+    onBind: (sheetBody) => {
+      sheetBody.querySelector("#cancelDeleteSourceButton").addEventListener("click", closeSheet);
+      sheetBody.querySelector("#confirmDeleteSourceButton").addEventListener("click", async () => {
+        await deleteClientSource(source);
+        closeSheet();
+        render();
+        toast("Источник удален");
+      });
+    },
+  });
+}
+
 function openReportOrdersSheet(type, label) {
   const orders = getReportBreakdownOrders(type, label);
 
@@ -1957,6 +2068,77 @@ async function archiveClient(clientId) {
 
 function getClientById(clientId) {
   return state.data.clients.find((client) => client.id === clientId) || null;
+}
+
+function getClientSources() {
+  const sources = state.data.settings.clientSources;
+  return Array.isArray(sources) && sources.length ? sources : CLIENT_SOURCES;
+}
+
+function getClientSourcesForValue(value) {
+  const sources = getClientSources();
+  return value && !sources.includes(value) ? [value, ...sources] : sources;
+}
+
+async function saveClientSource(previousSource, nextSource) {
+  const sources = getClientSources();
+  const normalizedNext = normalizeString(nextSource);
+
+  if (sources.some((source) => normalizeString(source) === normalizedNext && source !== previousSource)) {
+    toast("Такой источник уже есть");
+    return false;
+  }
+
+  const nextSources = previousSource
+    ? sources.map((source) => (source === previousSource ? nextSource : source))
+    : [...sources, nextSource];
+
+  state.data.settings.clientSources = nextSources;
+  await saveSetting("clientSources", nextSources);
+
+  if (previousSource && previousSource !== nextSource) {
+    await renameSourceInRecords(previousSource, nextSource);
+  }
+
+  return true;
+}
+
+async function deleteClientSource(sourceToDelete) {
+  const nextSources = getClientSources().filter((source) => source !== sourceToDelete);
+  state.data.settings.clientSources = nextSources.length ? nextSources : [...CLIENT_SOURCES];
+  await saveSetting("clientSources", state.data.settings.clientSources);
+
+  if (state.filters.orders.source === sourceToDelete) {
+    state.filters.orders.source = "";
+  }
+
+  if (state.filters.clients.source === sourceToDelete) {
+    state.filters.clients.source = "";
+  }
+}
+
+async function renameSourceInRecords(previousSource, nextSource) {
+  const clientsToUpdate = state.data.clients
+    .filter((client) => client.source === previousSource)
+    .map((client) => ({ ...client, source: nextSource, updatedAt: nowIso() }));
+  const ordersToUpdate = state.data.orders
+    .filter((order) => order.source === previousSource)
+    .map((order) => ({ ...order, source: nextSource, updatedAt: nowIso() }));
+
+  await Promise.all([
+    ...clientsToUpdate.map((client) => putRecord(STORE_NAMES.clients, client)),
+    ...ordersToUpdate.map((order) => putRecord(STORE_NAMES.orders, order)),
+  ]);
+
+  if (state.filters.orders.source === previousSource) {
+    state.filters.orders.source = nextSource;
+  }
+
+  if (state.filters.clients.source === previousSource) {
+    state.filters.clients.source = nextSource;
+  }
+
+  await loadAllData();
 }
 
 function findClientByName(name, ignoredClientId = "") {
