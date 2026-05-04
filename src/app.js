@@ -4,7 +4,6 @@ import {
   DEFAULT_SETTINGS,
   EXPENSE_CATEGORIES,
   ORDER_STATUSES,
-  RELATION_TYPES,
   REPORT_PERIODS,
   WORK_TYPES,
 } from "./constants.js";
@@ -165,7 +164,7 @@ async function ensureDemoData() {
       city: "Баса",
       address: "рядом с домом Ахмеда",
       notes: "Связь только через Ахмеда",
-      source: "Через соседа",
+      source: "Сарафанка",
       sourceComment: "Познакомил Ахмед",
       hasOwnPhone: false,
       linkedClientId: clientAhmedId,
@@ -218,7 +217,7 @@ async function ensureDemoData() {
       comment: "Связь через соседа",
       plannedDate: now.toISOString(),
       completedDate: now.toISOString(),
-      source: "Через соседа",
+      source: "Сарафанка",
       createdAt: now.toISOString(),
       updatedAt: nowIso(),
     },
@@ -349,6 +348,9 @@ function renderOrdersScreen() {
         </div>
 
         <div class="segment-control">
+          <button class="chip-button ${filters.status === "all" ? "is-active" : ""}" type="button" data-order-status="all">
+            Все
+          </button>
           ${ORDER_STATUSES.map(
             (status) => `
               <button class="chip-button ${filters.status === status.value ? "is-active" : ""}" type="button" data-order-status="${status.value}">
@@ -361,11 +363,12 @@ function renderOrdersScreen() {
         <div class="filters-grid">
           <div class="field">
             <label for="orderQueryInput">Поиск</label>
-            <input id="orderQueryInput" class="text-input" type="search" value="${escapeHtml(filters.query)}" placeholder="Имя, город, адрес, комментарий" />
+            <input id="orderQueryInput" class="text-input" type="search" value="${escapeHtml(filters.query)}" placeholder="Имя, город, телефон" />
           </div>
           <div class="field">
             <label for="orderCityFilter">Город</label>
-            <input id="orderCityFilter" class="text-input" type="text" value="${escapeHtml(filters.city)}" placeholder="Например, Баса" />
+            <input id="orderCityFilter" class="text-input" type="text" value="${escapeHtml(filters.city)}" list="orderCityFilterList" placeholder="Например, Баса" />
+            ${renderDatalist("orderCityFilterList", getKnownCities())}
           </div>
           <div class="field">
             <label for="orderClientFilter">Клиент</label>
@@ -421,7 +424,7 @@ function renderOrdersScreen() {
         <div class="section-header">
           <div>
             <p class="eyebrow">Список</p>
-            <h3>${ORDER_STATUSES.find((status) => status.value === filters.status)?.label || "Заказы"}</h3>
+            <h3>${filters.status === "all" ? "Все заказы" : ORDER_STATUSES.find((status) => status.value === filters.status)?.label || "Заказы"}</h3>
           </div>
           <span class="info-pill">${orders.length} ${pluralizeOrders(orders.length)}</span>
         </div>
@@ -458,7 +461,8 @@ function renderClientsScreen() {
           </div>
           <div class="field">
             <label for="clientCityFilter">Город</label>
-            <input id="clientCityFilter" class="text-input" type="text" value="${escapeHtml(state.filters.clients.city)}" placeholder="Например, Карасу" />
+            <input id="clientCityFilter" class="text-input" type="text" value="${escapeHtml(state.filters.clients.city)}" list="clientCityFilterList" placeholder="Например, Карасу" />
+            ${renderDatalist("clientCityFilterList", getKnownCities())}
           </div>
           <div class="field">
             <label for="clientSourceFilter">Источник</label>
@@ -668,6 +672,14 @@ function renderMetricCard(title, value, meta, tone = "plain", isCount = false) {
   `;
 }
 
+function renderDatalist(id, values) {
+  return `
+    <datalist id="${id}">
+      ${values.map((value) => `<option value="${escapeHtml(value)}"></option>`).join("")}
+    </datalist>
+  `;
+}
+
 function renderQuickActionCard(title, description, action) {
   return `
     <button class="quick-action-card" type="button" data-action="${action}">
@@ -702,7 +714,7 @@ function renderOrderCard(order, options = {}) {
         <div>
           <div class="pill-row">
             <span class="info-pill">${escapeHtml(order.workType)}</span>
-            <span class="info-pill">${formatCurrency(order.amount)}</span>
+            <span class="info-pill">${order.amount ? formatCurrency(order.amount) : "Сумма не указана"}</span>
             <span class="tiny-pill">${escapeHtml(source)}</span>
             ${relationBadge}
           </div>
@@ -719,12 +731,11 @@ function renderOrderCard(order, options = {}) {
           </div>
         </div>
 
-        <p class="field-copy">${escapeHtml(order.comment || "Комментарий не указан")}</p>
-
         <div class="inline-actions">
           ${order.status !== "done" ? `<button class="primary-button" type="button" data-action="complete-order" data-order-id="${order.id}">Выполнить</button>` : ""}
           <button class="ghost-button" type="button" data-action="edit-order" data-order-id="${order.id}">Редактировать</button>
           ${order.status !== "cancelled" ? `<button class="danger-button" type="button" data-action="cancel-order" data-order-id="${order.id}">Отменить</button>` : ""}
+          <button class="danger-button" type="button" data-action="delete-order" data-order-id="${order.id}">Удалить</button>
           ${!options.compact ? `<button class="chip-button" type="button" data-action="view-client" data-client-id="${order.clientId}">Клиент</button>` : ""}
         </div>
       </div>
@@ -761,8 +772,6 @@ function renderClientCard(client) {
             ${client.relationType ? `<span class="tiny-pill">${escapeHtml(client.relationType)}</span>` : ""}
           </div>
         </div>
-
-        <p class="field-copy">${escapeHtml(client.notes || "Без заметки")}</p>
 
         <div class="order-stats">
           <div class="data-item">
@@ -1040,6 +1049,11 @@ async function handleAction(action, payload) {
     return;
   }
 
+  if (action === "delete-order") {
+    openDeleteOrderSheet(payload.orderId);
+    return;
+  }
+
   if (action === "edit-expense") {
     openExpenseForm({ expenseId: payload.expenseId });
     return;
@@ -1222,14 +1236,11 @@ function openClientDetails(clientId) {
         <div class="details-grid">
           <div class="data-item"><span class="muted-label">Телефон</span><strong>${escapeHtml(client.phone || "Номер не указан")}</strong></div>
           <div class="data-item"><span class="muted-label">Город</span><strong>${escapeHtml(client.city || "Не указан")}</strong></div>
-          <div class="data-item"><span class="muted-label">Адрес</span><strong>${escapeHtml(client.address || "Не указан")}</strong></div>
           <div class="data-item"><span class="muted-label">Источник</span><strong>${escapeHtml(client.source || "Не указан")}</strong></div>
-          <div class="data-item"><span class="muted-label">Комментарий к источнику</span><strong>${escapeHtml(client.sourceComment || "Нет")}</strong></div>
           <div class="data-item"><span class="muted-label">Тип связи</span><strong>${escapeHtml(client.relationType || "Нет")}</strong></div>
           <div class="data-item"><span class="muted-label">Через кого связь</span><strong>${escapeHtml(linkedClient?.name || "Нет")}</strong></div>
           <div class="data-item"><span class="muted-label">Кто рекомендовал</span><strong>${escapeHtml(referredByClient?.name || "Нет")}</strong></div>
         </div>
-        <div class="helper-banner">${escapeHtml(client.notes || "Комментарий отсутствует")}</div>
       </section>
 
       <section class="sheet-section">
@@ -1293,7 +1304,8 @@ function openClientForm({ clientId } = {}) {
         <div class="form-grid">
           <div class="field">
             <label for="clientNameInput">Имя клиента</label>
-            <input id="clientNameInput" class="text-input" type="text" required value="${escapeHtml(client?.name || "")}" />
+            <input id="clientNameInput" class="text-input" type="text" required value="${escapeHtml(client?.name || "")}" list="clientNameList" />
+            ${renderDatalist("clientNameList", getKnownClientNames())}
           </div>
           <div class="field">
             <label for="clientPhoneInput">Телефон</label>
@@ -1304,63 +1316,11 @@ function openClientForm({ clientId } = {}) {
           </div>
           <div class="field">
             <label for="clientCityInput">Город / село</label>
-            <input id="clientCityInput" class="text-input" type="text" value="${escapeHtml(client?.city || "")}" />
+            <input id="clientCityInput" class="text-input" type="text" value="${escapeHtml(client?.city || "")}" list="clientCityList" />
+            ${renderDatalist("clientCityList", getKnownCities())}
           </div>
           <div class="field">
-            <label for="clientAddressInput">Адрес</label>
-            <input id="clientAddressInput" class="text-input" type="text" value="${escapeHtml(client?.address || "")}" />
-          </div>
-        </div>
-
-        <div class="field">
-          <label for="clientNotesInput">Комментарий</label>
-          <textarea id="clientNotesInput" class="textarea-input">${escapeHtml(client?.notes || "")}</textarea>
-        </div>
-
-        <div class="form-grid">
-          <label class="field-checkbox">
-            <input id="clientHasOwnPhoneInput" type="checkbox" ${client?.hasOwnPhone !== false ? "checked" : ""} />
-            <span>Есть собственный номер</span>
-          </label>
-          <label class="field-checkbox">
-            <input id="clientLinkModeInput" type="checkbox" ${client?.linkedClientId ? "checked" : ""} />
-            <span>Связь через другого клиента</span>
-          </label>
-        </div>
-
-        <div id="clientRelationFields" class="form-grid" style="${client?.linkedClientId ? "" : "display:none;"}">
-          <div class="field">
-            <label for="linkedClientSelect">Выбрать клиента</label>
-            <select id="linkedClientSelect" class="select-input">
-              <option value="">Не выбран</option>
-              ${state.data.clients
-                .filter((item) => item.id !== clientId)
-                .map(
-                  (item) => `
-                    <option value="${item.id}" ${client?.linkedClientId === item.id ? "selected" : ""}>${escapeHtml(item.name)}</option>
-                  `,
-                )
-                .join("")}
-            </select>
-          </div>
-          <div class="field">
-            <label for="relationTypeSelect">Тип связи</label>
-            <select id="relationTypeSelect" class="select-input">
-              <option value="">Не выбрано</option>
-              ${RELATION_TYPES.map(
-                (relation) => `
-                  <option value="${relation}" ${client?.relationType === relation ? "selected" : ""}>${relation}</option>
-                `,
-              ).join("")}
-            </select>
-          </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="form-grid">
-          <div class="field">
-            <label for="clientSourceSelect">Откуда узнал</label>
+            <label for="clientSourceSelect">Откуда пришел</label>
             <select id="clientSourceSelect" class="select-input">
               ${CLIENT_SOURCES.map(
                 (source) => `
@@ -1369,27 +1329,6 @@ function openClientForm({ clientId } = {}) {
               ).join("")}
             </select>
           </div>
-          <div class="field">
-            <label for="clientSourceCommentInput">Комментарий к источнику</label>
-            <input id="clientSourceCommentInput" class="text-input" type="text" value="${escapeHtml(client?.sourceComment || "")}" />
-          </div>
-        </div>
-
-        <div id="clientReferralField" class="field" style="${
-          client?.source === "Знакомые" || client?.source === "Через соседа" ? "" : "display:none;"
-        }">
-          <label for="clientReferredBySelect">Через кого?</label>
-          <select id="clientReferredBySelect" class="select-input">
-            <option value="">Не выбрано</option>
-            ${state.data.clients
-              .filter((item) => item.id !== clientId)
-              .map(
-                (item) => `
-                  <option value="${item.id}" ${client?.referredByClientId === item.id ? "selected" : ""}>${escapeHtml(item.name)}</option>
-                `,
-              )
-              .join("")}
-          </select>
         </div>
 
         <div class="sheet-footer">
@@ -1399,22 +1338,10 @@ function openClientForm({ clientId } = {}) {
     `,
     onBind: (sheetBody) => {
       const form = sheetBody.querySelector("#clientForm");
-      const linkModeInput = sheetBody.querySelector("#clientLinkModeInput");
-      const relationFields = sheetBody.querySelector("#clientRelationFields");
-      const sourceSelect = sheetBody.querySelector("#clientSourceSelect");
-      const referralField = sheetBody.querySelector("#clientReferralField");
       const clientNameInput = sheetBody.querySelector("#clientNameInput");
       const clientPhoneInput = sheetBody.querySelector("#clientPhoneInput");
+      const clientCityInput = sheetBody.querySelector("#clientCityInput");
       const clientPickContactButton = sheetBody.querySelector("#clientPickContactButton");
-
-      linkModeInput.addEventListener("change", () => {
-        relationFields.style.display = linkModeInput.checked ? "" : "none";
-      });
-
-      sourceSelect.addEventListener("change", () => {
-        const shouldShow = ["Знакомые", "Через соседа"].includes(sourceSelect.value);
-        referralField.style.display = shouldShow ? "" : "none";
-      });
 
       bindContactPickerButton({
         button: clientPickContactButton,
@@ -1422,28 +1349,37 @@ function openClientForm({ clientId } = {}) {
         phoneInput: clientPhoneInput,
       });
 
+      clientNameInput.addEventListener("change", () => {
+        const matchedClient = findClientByName(clientNameInput.value, client?.id);
+        if (!matchedClient) {
+          return;
+        }
+
+        if (!clientPhoneInput.value.trim()) {
+          clientPhoneInput.value = matchedClient.phone || "";
+        }
+
+        if (!clientCityInput.value.trim()) {
+          clientCityInput.value = matchedClient.city || "";
+        }
+      });
+
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
-
-        const hasOwnPhone = sheetBody.querySelector("#clientHasOwnPhoneInput").checked;
-        const linkedClientId = linkModeInput.checked ? sheetBody.querySelector("#linkedClientSelect").value : "";
-        const referredByClientId = ["Знакомые", "Через соседа"].includes(sourceSelect.value)
-          ? sheetBody.querySelector("#clientReferredBySelect").value
-          : "";
 
         const record = {
           id: client?.id || createId("client"),
           name: sheetBody.querySelector("#clientNameInput").value.trim(),
           phone: sheetBody.querySelector("#clientPhoneInput").value.trim(),
           city: sheetBody.querySelector("#clientCityInput").value.trim(),
-          address: sheetBody.querySelector("#clientAddressInput").value.trim(),
-          notes: sheetBody.querySelector("#clientNotesInput").value.trim(),
-          source: sourceSelect.value,
-          sourceComment: sheetBody.querySelector("#clientSourceCommentInput").value.trim(),
-          hasOwnPhone,
-          linkedClientId,
-          relationType: linkModeInput.checked ? sheetBody.querySelector("#relationTypeSelect").value : "",
-          referredByClientId,
+          address: client?.address || "",
+          notes: client?.notes || "",
+          source: sheetBody.querySelector("#clientSourceSelect").value,
+          sourceComment: client?.sourceComment || "",
+          hasOwnPhone: true,
+          linkedClientId: client?.linkedClientId || "",
+          relationType: client?.relationType || "",
+          referredByClientId: client?.referredByClientId || "",
           createdAt: client?.createdAt || nowIso(),
           updatedAt: nowIso(),
         };
@@ -1466,201 +1402,81 @@ function openClientForm({ clientId } = {}) {
 function openOrderForm({ orderId, clientId } = {}) {
   const order = orderId ? state.data.orders.find((item) => item.id === orderId) : null;
   const selectedClient = order ? getClientById(order.clientId) : getClientById(clientId);
-  const defaultClientMode = order?.clientId || clientId ? "existing" : "new";
   const canPickContact = supportsContactPicker();
+  const sourceValue = order?.source || selectedClient?.source || CLIENT_SOURCES[0];
 
   openSheet({
     kicker: order ? "Редактирование заказа" : "Новый заказ",
     title: order ? "Обновить заказ" : "Создать заказ",
     body: `
       <form id="orderForm" class="sheet-section">
-        <section class="sheet-section">
-          <h3>Клиент</h3>
-          <div class="segment-control">
-            <button id="existingClientModeButton" class="chip-button ${defaultClientMode === "existing" ? "is-active" : ""}" type="button">Выбрать из базы</button>
-            <button id="newClientModeButton" class="chip-button ${defaultClientMode === "new" ? "is-active" : ""}" type="button">Новый клиент</button>
+        <div class="form-grid">
+          <div class="field">
+            <label for="orderClientNameInput">Имя</label>
+            <input id="orderClientNameInput" class="text-input" type="text" required value="${escapeHtml(selectedClient?.name || "")}" list="orderClientNameList" />
+            ${renderDatalist("orderClientNameList", getKnownClientNames())}
           </div>
-
-          <div id="existingClientField" class="field" style="${defaultClientMode === "existing" ? "" : "display:none;"}">
-            <label for="orderClientSelect">Выберите клиента</label>
-            <select id="orderClientSelect" class="select-input">
-              <option value="">Выбрать из базы</option>
-              ${state.data.clients
-                .map(
-                  (clientItem) => `
-                    <option value="${clientItem.id}" ${(order?.clientId || clientId) === clientItem.id ? "selected" : ""}>${escapeHtml(clientItem.name)} • ${escapeHtml(clientItem.city || "город не указан")}</option>
-                  `,
-                )
-                .join("")}
-            </select>
-          </div>
-
-          <div id="existingClientPhoneField" class="field" style="${defaultClientMode === "existing" ? "" : "display:none;"}">
-            <label for="orderExistingClientPhoneInput">Телефон клиента</label>
-            <input id="orderExistingClientPhoneInput" class="text-input" type="tel" inputmode="tel" value="${escapeHtml(selectedClient?.phone || "")}" placeholder="+7 (999) 123-45-67" />
-            <button class="ghost-button contact-picker-button" type="button" id="orderExistingClientPickContactButton" ${canPickContact ? "" : "disabled"}>
+          <div class="field">
+            <label for="orderClientPhoneInput">Номер</label>
+            <input id="orderClientPhoneInput" class="text-input" type="tel" inputmode="tel" value="${escapeHtml(selectedClient?.phone || "")}" placeholder="+7 (999) 123-45-67" />
+            <button class="ghost-button contact-picker-button" type="button" id="orderPickContactButton" ${canPickContact ? "" : "disabled"}>
               ${canPickContact ? "Выбрать из контактов" : "Контакты недоступны"}
             </button>
           </div>
-
-          <div id="newClientFields" class="sheet-section" style="${defaultClientMode === "new" ? "" : "display:none;"}">
-            <div class="form-grid">
-              <div class="field">
-                <label for="orderClientNameInput">Имя клиента</label>
-                <input id="orderClientNameInput" class="text-input" type="text" value="${escapeHtml(selectedClient?.name || "")}" />
-              </div>
-              <div class="field">
-                <label for="orderClientPhoneInput">Телефон</label>
-                <input id="orderClientPhoneInput" class="text-input" type="tel" inputmode="tel" value="${escapeHtml(selectedClient?.phone || "")}" placeholder="+7 (999) 123-45-67" />
-                <button class="ghost-button contact-picker-button" type="button" id="orderNewClientPickContactButton" ${canPickContact ? "" : "disabled"}>
-                  ${canPickContact ? "Выбрать из контактов" : "Контакты недоступны"}
-                </button>
-              </div>
-              <div class="field">
-                <label for="orderClientCityInlineInput">Город / село</label>
-                <input id="orderClientCityInlineInput" class="text-input" type="text" value="${escapeHtml(selectedClient?.city || order?.city || "")}" />
-              </div>
-            </div>
-
-            <button id="toggleOrderClientExtraButton" class="ghost-button" type="button">
-              Дополнительно
-            </button>
-
-            <div id="orderClientExtraFields" class="sheet-section" style="display:none;">
-              <div class="field">
-                <label for="orderClientAddressInlineInput">Адрес</label>
-                <input id="orderClientAddressInlineInput" class="text-input" type="text" value="${escapeHtml(selectedClient?.address || order?.address || "")}" />
-              </div>
-
-              <div class="field">
-                <label for="orderClientNotesInlineInput">Комментарий</label>
-                <textarea id="orderClientNotesInlineInput" class="textarea-input">${escapeHtml(selectedClient?.notes || "")}</textarea>
-              </div>
-
-              <div class="form-grid">
-                <label class="field-checkbox">
-                  <input id="orderClientHasOwnPhoneInput" type="checkbox" ${selectedClient?.hasOwnPhone !== false ? "checked" : ""} />
-                  <span>Есть собственный номер</span>
-                </label>
-                <label class="field-checkbox">
-                  <input id="orderClientLinkModeInput" type="checkbox" ${selectedClient?.linkedClientId ? "checked" : ""} />
-                  <span>Связь через другого клиента</span>
-                </label>
-              </div>
-
-              <div id="orderClientRelationFields" class="form-grid" style="${selectedClient?.linkedClientId ? "" : "display:none;"}">
-                <div class="field">
-                  <label for="orderLinkedClientSelect">Выбрать клиента</label>
-                  <select id="orderLinkedClientSelect" class="select-input">
-                    <option value="">Не выбран</option>
-                    ${state.data.clients
-                      .map(
-                        (item) => `
-                          <option value="${item.id}" ${selectedClient?.linkedClientId === item.id ? "selected" : ""}>${escapeHtml(item.name)}</option>
-                        `,
-                      )
-                      .join("")}
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="orderRelationTypeSelect">Тип связи</label>
-                  <select id="orderRelationTypeSelect" class="select-input">
-                    <option value="">Не выбрано</option>
-                    ${RELATION_TYPES.map(
-                      (relation) => `
-                        <option value="${relation}" ${selectedClient?.relationType === relation ? "selected" : ""}>${relation}</option>
-                      `,
-                    ).join("")}
-                  </select>
-                </div>
-              </div>
-
-              <div class="form-grid">
-                <div class="field">
-                  <label for="orderClientSourceInlineSelect">Откуда узнал</label>
-                  <select id="orderClientSourceInlineSelect" class="select-input">
-                    ${CLIENT_SOURCES.map(
-                      (source) => `
-                        <option value="${source}" ${(selectedClient?.source || "Авито") === source ? "selected" : ""}>${source}</option>
-                      `,
-                    ).join("")}
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="orderClientSourceCommentInlineInput">Комментарий к источнику</label>
-                  <input id="orderClientSourceCommentInlineInput" class="text-input" type="text" value="${escapeHtml(selectedClient?.sourceComment || "")}" />
-                </div>
-              </div>
-
-              <div id="orderClientReferralField" class="field" style="${
-                selectedClient?.source === "Знакомые" || selectedClient?.source === "Через соседа" ? "" : "display:none;"
-              }">
-                <label for="orderClientReferredBySelect">Через кого?</label>
-                <select id="orderClientReferredBySelect" class="select-input">
-                  <option value="">Не выбрано</option>
-                  ${state.data.clients
-                    .map(
-                      (item) => `
-                        <option value="${item.id}" ${selectedClient?.referredByClientId === item.id ? "selected" : ""}>${escapeHtml(item.name)}</option>
-                      `,
-                    )
-                    .join("")}
-                </select>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="sheet-section">
-          <div class="form-grid">
-            <div class="field">
-              <label for="orderWorkTypeSelect">Тип работы</label>
-              <select id="orderWorkTypeSelect" class="select-input">
-                ${WORK_TYPES.map(
-                  (type) => `
-                    <option value="${type}" ${order?.workType === type ? "selected" : ""}>${type}</option>
-                  `,
-                ).join("")}
-              </select>
-            </div>
-            <div class="field">
-              <label for="orderAmountInput">Сумма</label>
-              <input id="orderAmountInput" class="text-input" type="text" inputmode="numeric" pattern="[0-9]*" value="${escapeHtml(order?.amount || "")}" placeholder="Только цифры" />
-            </div>
-            <div class="field">
-              <label for="orderCityInput">Город / село</label>
-              <input id="orderCityInput" class="text-input" type="text" value="${escapeHtml(order?.city || selectedClient?.city || "")}" />
-            </div>
-            <div class="field">
-              <label for="orderAddressInput">Адрес</label>
-              <input id="orderAddressInput" class="text-input" type="text" value="${escapeHtml(order?.address || selectedClient?.address || "")}" />
-            </div>
+          <div class="field">
+            <label for="orderAmountInput">Сумма</label>
+            <input id="orderAmountInput" class="text-input" type="text" inputmode="numeric" pattern="[0-9]*" value="${escapeHtml(order?.amount || "")}" placeholder="Можно оставить пустым" />
           </div>
           <div class="field">
-            <label for="orderCommentInput">Комментарий</label>
-            <textarea id="orderCommentInput" class="textarea-input">${escapeHtml(order?.comment || "")}</textarea>
+            <label for="orderCityInput">Город</label>
+            <input id="orderCityInput" class="text-input" type="text" required value="${escapeHtml(order?.city || selectedClient?.city || "")}" list="orderCityList" />
+            ${renderDatalist("orderCityList", getKnownCities())}
           </div>
-          <div class="form-grid">
-            <div class="field">
-              <label for="orderPlannedDateInput">Планируемая дата</label>
-              <input id="orderPlannedDateInput" class="text-input" type="date" value="${escapeHtml(toDateInputValue(order?.plannedDate || new Date().toISOString()))}" />
-            </div>
-            <div class="field">
-              <label for="orderStatusSelect">Статус</label>
-              <select id="orderStatusSelect" class="select-input">
-                ${ORDER_STATUSES.map(
-                  (status) => `
-                    <option value="${status.value}" ${(order?.status || "pending") === status.value ? "selected" : ""}>${status.label}</option>
-                  `,
-                ).join("")}
-              </select>
-            </div>
+          <div class="field">
+            <label for="orderSourceSelect">Откуда пришел</label>
+            <select id="orderSourceSelect" class="select-input">
+              ${CLIENT_SOURCES.map(
+                (source) => `
+                  <option value="${source}" ${sourceValue === source ? "selected" : ""}>${source}</option>
+                `,
+              ).join("")}
+            </select>
           </div>
-          <div id="completedDateField" class="field" style="${(order?.status || "pending") === "done" ? "" : "display:none;"}">
-            <label for="orderCompletedDateInput">Дата выполнения</label>
-            <input id="orderCompletedDateInput" class="text-input" type="date" value="${escapeHtml(toDateInputValue(order?.completedDate || new Date().toISOString()))}" />
+          <div class="field">
+            <label for="orderWorkTypeSelect">Тип работы</label>
+            <select id="orderWorkTypeSelect" class="select-input">
+              ${WORK_TYPES.map(
+                (type) => `
+                  <option value="${type}" ${order?.workType === type ? "selected" : ""}>${type}</option>
+                `,
+              ).join("")}
+            </select>
           </div>
-        </section>
+          <div class="field">
+            <label for="orderPlannedDateInput">Планируемая дата</label>
+            <input id="orderPlannedDateInput" class="text-input" type="date" value="${escapeHtml(toDateInputValue(order?.plannedDate || new Date().toISOString()))}" />
+          </div>
+          <div class="field">
+            <label for="orderStatusSelect">Статус</label>
+            <select id="orderStatusSelect" class="select-input">
+              ${ORDER_STATUSES.map(
+                (status) => `
+                  <option value="${status.value}" ${(order?.status || "pending") === status.value ? "selected" : ""}>${status.label}</option>
+                `,
+              ).join("")}
+            </select>
+          </div>
+        </div>
+
+        <div id="completedDateField" class="field" style="${(order?.status || "pending") === "done" ? "" : "display:none;"}">
+          <label for="orderCompletedDateInput">Дата выполнения</label>
+          <input id="orderCompletedDateInput" class="text-input" type="date" value="${escapeHtml(toDateInputValue(order?.completedDate || new Date().toISOString()))}" />
+        </div>
+
+        <label class="field-checkbox">
+          <input id="orderReminderInput" type="checkbox" ${order ? "" : "checked"} />
+          <span>Напомнить в телефоне в планируемую дату</span>
+        </label>
 
         <div class="sheet-footer">
           <button class="primary-button" type="submit">${order ? "Сохранить заказ" : "Создать заказ"}</button>
@@ -1671,181 +1487,105 @@ function openOrderForm({ orderId, clientId } = {}) {
       const form = sheetBody.querySelector("#orderForm");
       const statusSelect = sheetBody.querySelector("#orderStatusSelect");
       const completedDateField = sheetBody.querySelector("#completedDateField");
-      const clientSelect = sheetBody.querySelector("#orderClientSelect");
-      const existingClientModeButton = sheetBody.querySelector("#existingClientModeButton");
-      const newClientModeButton = sheetBody.querySelector("#newClientModeButton");
-      const existingClientField = sheetBody.querySelector("#existingClientField");
-      const existingClientPhoneField = sheetBody.querySelector("#existingClientPhoneField");
-      const newClientFields = sheetBody.querySelector("#newClientFields");
-      const toggleOrderClientExtraButton = sheetBody.querySelector("#toggleOrderClientExtraButton");
-      const orderClientExtraFields = sheetBody.querySelector("#orderClientExtraFields");
+      const nameInput = sheetBody.querySelector("#orderClientNameInput");
+      const phoneInput = sheetBody.querySelector("#orderClientPhoneInput");
       const cityInput = sheetBody.querySelector("#orderCityInput");
-      const addressInput = sheetBody.querySelector("#orderAddressInput");
-      const clientLinkModeInput = sheetBody.querySelector("#orderClientLinkModeInput");
-      const relationFields = sheetBody.querySelector("#orderClientRelationFields");
-      const sourceInlineSelect = sheetBody.querySelector("#orderClientSourceInlineSelect");
-      const referralField = sheetBody.querySelector("#orderClientReferralField");
-      const existingClientPhoneInput = sheetBody.querySelector("#orderExistingClientPhoneInput");
-      const existingClientPickContactButton = sheetBody.querySelector("#orderExistingClientPickContactButton");
-      const newClientNameInput = sheetBody.querySelector("#orderClientNameInput");
-      const newClientPhoneInput = sheetBody.querySelector("#orderClientPhoneInput");
-      const newClientPickContactButton = sheetBody.querySelector("#orderNewClientPickContactButton");
-      let clientMode = defaultClientMode;
+      const sourceSelect = sheetBody.querySelector("#orderSourceSelect");
 
       statusSelect.addEventListener("change", () => {
         completedDateField.style.display = statusSelect.value === "done" ? "" : "none";
       });
 
-      existingClientModeButton.addEventListener("click", () => {
-        clientMode = "existing";
-        syncClientMode();
-      });
-
-      newClientModeButton.addEventListener("click", () => {
-        clientMode = "new";
-        syncClientMode();
-      });
-
-      if (toggleOrderClientExtraButton) {
-        toggleOrderClientExtraButton.addEventListener("click", () => {
-          const isHidden = orderClientExtraFields.style.display === "none";
-          orderClientExtraFields.style.display = isHidden ? "" : "none";
-          toggleOrderClientExtraButton.textContent = isHidden ? "Скрыть доп. поля" : "Дополнительно";
-        });
-      }
-
-      clientSelect.addEventListener("change", () => {
-        const currentClient = getClientById(clientSelect.value);
-        if (currentClient) {
-          existingClientPhoneInput.value = currentClient.phone || "";
-          cityInput.value = currentClient.city || cityInput.value;
-          addressInput.value = currentClient.address || addressInput.value;
+      nameInput.addEventListener("change", () => {
+        const matchedClient = findClientByName(nameInput.value, selectedClient?.id);
+        if (!matchedClient) {
+          return;
         }
-      });
 
-      if (clientLinkModeInput) {
-        clientLinkModeInput.addEventListener("change", () => {
-          relationFields.style.display = clientLinkModeInput.checked ? "" : "none";
-        });
-      }
-
-      if (sourceInlineSelect) {
-        sourceInlineSelect.addEventListener("change", () => {
-          const shouldShow = ["Знакомые", "Через соседа"].includes(sourceInlineSelect.value);
-          referralField.style.display = shouldShow ? "" : "none";
-        });
-      }
-
-      bindContactPickerButton({
-        button: existingClientPickContactButton,
-        nameInput: null,
-        phoneInput: existingClientPhoneInput,
+        phoneInput.value = matchedClient.phone || phoneInput.value;
+        cityInput.value = matchedClient.city || cityInput.value;
+        sourceSelect.value = matchedClient.source || sourceSelect.value;
       });
 
       bindContactPickerButton({
-        button: newClientPickContactButton,
-        nameInput: newClientNameInput,
-        phoneInput: newClientPhoneInput,
+        button: sheetBody.querySelector("#orderPickContactButton"),
+        nameInput,
+        phoneInput,
       });
-
-      syncClientMode();
 
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
 
-        let selectedClientId = clientSelect.value;
-        let currentClient = getClientById(selectedClientId);
+        const name = nameInput.value.trim();
+        const city = cityInput.value.trim();
 
-        if (clientMode === "new") {
-          const newClientName = sheetBody.querySelector("#orderClientNameInput").value.trim();
-          const newClientSource = sheetBody.querySelector("#orderClientSourceInlineSelect").value;
-
-          if (!newClientName) {
-            toast("Укажите имя клиента");
-            return;
-          }
-
-          currentClient = {
-            id: order?.clientId || createId("client"),
-            name: newClientName,
-            phone: sheetBody.querySelector("#orderClientPhoneInput").value.trim(),
-            city: sheetBody.querySelector("#orderClientCityInlineInput").value.trim(),
-            address: sheetBody.querySelector("#orderClientAddressInlineInput")?.value.trim() || "",
-            notes: sheetBody.querySelector("#orderClientNotesInlineInput")?.value.trim() || "",
-            source: newClientSource,
-            sourceComment: sheetBody.querySelector("#orderClientSourceCommentInlineInput")?.value.trim() || "",
-            hasOwnPhone: sheetBody.querySelector("#orderClientHasOwnPhoneInput")?.checked ?? true,
-            linkedClientId: sheetBody.querySelector("#orderClientLinkModeInput")?.checked ? sheetBody.querySelector("#orderLinkedClientSelect").value : "",
-            relationType: sheetBody.querySelector("#orderClientLinkModeInput")?.checked ? sheetBody.querySelector("#orderRelationTypeSelect").value : "",
-            referredByClientId: ["Знакомые", "Через соседа"].includes(newClientSource)
-              ? sheetBody.querySelector("#orderClientReferredBySelect")?.value || ""
-              : "",
-            createdAt: selectedClient?.createdAt || nowIso(),
-            updatedAt: nowIso(),
-          };
-
-          await putRecord(STORE_NAMES.clients, currentClient);
-          selectedClientId = currentClient.id;
-        } else if (currentClient) {
-          const updatedPhone = existingClientPhoneInput.value.trim();
-          if (updatedPhone !== (currentClient.phone || "")) {
-            currentClient = {
-              ...currentClient,
-              phone: updatedPhone,
-              updatedAt: nowIso(),
-            };
-            await putRecord(STORE_NAMES.clients, currentClient);
-          }
-        }
-
-        if (!selectedClientId || !currentClient) {
-          toast("Выберите клиента или заполните нового клиента");
+        if (!name) {
+          toast("Укажите имя");
           return;
         }
+
+        if (!city) {
+          toast("Укажите город");
+          return;
+        }
+
+        const wantsReminder = sheetBody.querySelector("#orderReminderInput").checked;
+        const reminderPermission = wantsReminder ? await requestNotificationPermission() : "";
+        let currentClient = selectedClient || findClientByName(name);
+        currentClient = {
+          ...(currentClient || {}),
+          id: currentClient?.id || createId("client"),
+          name,
+          phone: phoneInput.value.trim(),
+          city,
+          address: currentClient?.address || "",
+          notes: currentClient?.notes || "",
+          source: sourceSelect.value,
+          sourceComment: currentClient?.sourceComment || "",
+          hasOwnPhone: true,
+          linkedClientId: currentClient?.linkedClientId || "",
+          relationType: currentClient?.relationType || "",
+          referredByClientId: currentClient?.referredByClientId || "",
+          createdAt: currentClient?.createdAt || nowIso(),
+          updatedAt: nowIso(),
+        };
+
+        await putRecord(STORE_NAMES.clients, currentClient);
 
         const status = statusSelect.value;
         const plannedDateValue = sheetBody.querySelector("#orderPlannedDateInput").value;
         const completedDateValue = sheetBody.querySelector("#orderCompletedDateInput")?.value || "";
-
+        const amountValue = sheetBody.querySelector("#orderAmountInput").value.replace(/\D/g, "");
         const record = {
           id: order?.id || createId("order"),
-          clientId: selectedClientId,
+          clientId: currentClient.id,
           workType: sheetBody.querySelector("#orderWorkTypeSelect").value,
-          amount: Number(sheetBody.querySelector("#orderAmountInput").value.replace(/\D/g, "")),
+          amount: amountValue ? Number(amountValue) : 0,
           status,
-          city: cityInput.value.trim(),
-          address: addressInput.value.trim(),
-          comment: sheetBody.querySelector("#orderCommentInput").value.trim(),
+          city,
+          address: order?.address || "",
+          comment: order?.comment || "",
           plannedDate: plannedDateValue ? new Date(plannedDateValue).toISOString() : "",
           completedDate:
             status === "done"
               ? new Date(completedDateValue || plannedDateValue || new Date().toISOString()).toISOString()
               : "",
-          source: currentClient.source || "",
+          source: sourceSelect.value,
           createdAt: order?.createdAt || nowIso(),
           updatedAt: nowIso(),
         };
-
-        if (!record.amount) {
-          toast("Укажите сумму заказа");
-          return;
-        }
 
         await putRecord(STORE_NAMES.orders, record);
         await loadAllData();
         closeSheet();
         render();
+
+        if (wantsReminder) {
+          scheduleOrderReminder(record, currentClient, reminderPermission);
+        }
+
         toast(order ? "Заказ обновлен" : "Заказ создан");
       });
-
-      function syncClientMode() {
-        const isExistingMode = clientMode === "existing";
-        existingClientModeButton.classList.toggle("is-active", isExistingMode);
-        newClientModeButton.classList.toggle("is-active", !isExistingMode);
-        existingClientField.style.display = isExistingMode ? "" : "none";
-        existingClientPhoneField.style.display = isExistingMode ? "" : "none";
-        newClientFields.style.display = isExistingMode ? "none" : "";
-      }
     },
   });
 }
@@ -2093,6 +1833,42 @@ async function markOrderCancelled(orderId) {
   toast("Заказ отменен");
 }
 
+function openDeleteOrderSheet(orderId) {
+  const order = state.data.orders.find((item) => item.id === orderId);
+  const client = getClientById(order?.clientId);
+
+  if (!order) {
+    toast("Заказ не найден");
+    return;
+  }
+
+  openSheet({
+    kicker: "Подтверждение",
+    title: "Удалить заказ?",
+    body: `
+      <section class="sheet-section">
+        <div class="helper-banner">
+          Заказ ${escapeHtml(client?.name || "клиента")} будет полностью удален. Это действие нельзя отменить.
+        </div>
+        <div class="settings-actions">
+          <button class="danger-button" type="button" id="confirmDeleteOrderButton">Да, удалить</button>
+          <button class="ghost-button" type="button" id="cancelDeleteOrderButton">Отмена</button>
+        </div>
+      </section>
+    `,
+    onBind: (sheetBody) => {
+      sheetBody.querySelector("#cancelDeleteOrderButton").addEventListener("click", closeSheet);
+      sheetBody.querySelector("#confirmDeleteOrderButton").addEventListener("click", async () => {
+        await deleteRecord(STORE_NAMES.orders, orderId);
+        await loadAllData();
+        closeSheet();
+        render();
+        toast("Заказ удален");
+      });
+    },
+  });
+}
+
 async function deleteExpense(expenseId) {
   await deleteRecord(STORE_NAMES.expenses, expenseId);
   await loadAllData();
@@ -2115,6 +1891,37 @@ async function archiveClient(clientId) {
 
 function getClientById(clientId) {
   return state.data.clients.find((client) => client.id === clientId) || null;
+}
+
+function findClientByName(name, ignoredClientId = "") {
+  const normalizedName = normalizeString(name);
+
+  if (!normalizedName) {
+    return null;
+  }
+
+  return (
+    state.data.clients.find(
+      (client) => client.id !== ignoredClientId && normalizeString(client.name) === normalizedName,
+    ) || null
+  );
+}
+
+function getKnownClientNames() {
+  return getUniqueSortedValues(state.data.clients.map((client) => client.name));
+}
+
+function getKnownCities() {
+  return getUniqueSortedValues([
+    ...state.data.clients.map((client) => client.city),
+    ...state.data.orders.map((order) => order.city),
+  ]);
+}
+
+function getUniqueSortedValues(values) {
+  return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))].sort((first, second) =>
+    first.localeCompare(second, "ru"),
+  );
 }
 
 function getStatusLabel(status) {
@@ -2147,7 +1954,7 @@ function getFilteredOrders() {
     const relevantDate = order.status === "done" ? order.completedDate : order.plannedDate || order.createdAt;
 
     return (
-      order.status === filters.status &&
+      (filters.status === "all" || order.status === filters.status) &&
       (!filters.city || normalizeString(order.city).includes(normalizeString(filters.city))) &&
       (!filters.clientId || order.clientId === filters.clientId) &&
       (!filters.workType || order.workType === filters.workType) &&
@@ -2272,6 +2079,66 @@ function buildGroupedBreakdown(items, labelSelector, valueSelector, isMoney) {
   return [...map.entries()]
     .map(([label, value]) => ({ label, value, isMoney }))
     .sort((firstItem, secondItem) => secondItem.value - firstItem.value);
+}
+
+async function requestNotificationPermission() {
+  if (!("Notification" in window)) {
+    return "unsupported";
+  }
+
+  return Notification.permission === "granted" ? "granted" : Notification.requestPermission();
+}
+
+async function scheduleOrderReminder(order, client, permission) {
+  if (permission === "unsupported") {
+    toast("Уведомления не поддерживаются на этом телефоне");
+    return;
+  }
+
+  if (permission !== "granted") {
+    toast("Разрешите уведомления, чтобы получать напоминания");
+    return;
+  }
+
+  const plannedDate = toDateInputValue(order.plannedDate);
+  if (!plannedDate) {
+    return;
+  }
+
+  const reminderAt = new Date(`${plannedDate}T09:00:00`);
+  const delay = reminderAt.getTime() - Date.now();
+  if (delay <= 0) {
+    toast("Дата уже наступила, напоминание не поставлено");
+    return;
+  }
+
+  window.setTimeout(() => {
+    showOrderNotification(order, client);
+  }, Math.min(delay, 2147483647));
+
+  toast("Напоминание поставлено");
+}
+
+async function showOrderNotification(order, client) {
+  const title = `Заказ: ${client?.name || "клиент"}`;
+  const body = `${order.city || "Город не указан"} • ${order.workType || "Тип работы не указан"}`;
+
+  if (navigator.serviceWorker?.ready) {
+    const registration = await navigator.serviceWorker.ready;
+    registration.showNotification(title, {
+      body,
+      tag: order.id,
+      icon: "./assets/icon-192.svg",
+      badge: "./assets/icon-192.svg",
+    });
+    return;
+  }
+
+  new Notification(title, {
+    body,
+    tag: order.id,
+    icon: "./assets/icon-192.svg",
+  });
 }
 
 async function saveSetting(key, value) {

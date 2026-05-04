@@ -15,15 +15,12 @@ export const WORK_TYPES = [
 ];
 
 export const CLIENT_SOURCES = [
-  "Авито",
-  "WhatsApp",
-  "Instagram",
-  "Telegram",
-  "Знакомые",
-  "Через соседа",
+  "Сарафанка",
   "Повторный клиент",
-  "Звонок напрямую",
-  "Остановил на дороге",
+  "Авито",
+  "Реклама в WhatsApp",
+  "Остановили в дороге",
+  "Знакомые",
   "Другое",
 ];
 
@@ -71,7 +68,7 @@ export const DEFAULT_SETTINGS = {
 
 export const DEFAULT_FILTERS = {
   orders: {
-    status: "pending",
+    status: "all",
     city: "",
     clientId: "",
     source: "",

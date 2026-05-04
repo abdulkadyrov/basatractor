@@ -4,8 +4,8 @@
   "description": "Оффлайн PWA для учета клиентов, заказов, расходов, прибыли и отчетов для мини-трактора.",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#050509",
-  "theme_color": "#050509",
+  "background_color": "#0a84ff",
+  "theme_color": "#0a84ff",
   "lang": "ru",
   "orientation": "portrait",
   "icons": [

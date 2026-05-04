@@ -1,4 +1,4 @@
-const CACHE_NAME = "basa-tractor-crm-v1";
+const CACHE_NAME = "basa-tractor-crm-v2";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -55,4 +55,9 @@ self.addEventListener("fetch", (event) => {
         .catch(() => caches.match("./index.html"));
     }),
   );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(clients.openWindow("./"));
 });
