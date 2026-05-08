@@ -225,6 +225,7 @@ svg {
 .primary-button,
 .secondary-button,
 .ghost-button,
+.whatsapp-button,
 .danger-button {
   border: 0;
   transition:
@@ -377,6 +378,7 @@ svg {
 .primary-button,
 .secondary-button,
 .ghost-button,
+.whatsapp-button,
 .danger-button {
   display: inline-flex;
   align-items: center;
@@ -386,6 +388,7 @@ svg {
   border-radius: 16px;
   font-weight: 600;
   text-align: center;
+  text-decoration: none;
 }
 
 .chip-button {
@@ -415,6 +418,17 @@ svg {
   color: var(--text-primary);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.whatsapp-button {
+  color: #052e16;
+  background: linear-gradient(135deg, #25d366, #86efac);
+  border: 1px solid rgba(34, 197, 94, 0.36);
+}
+
+.ghost-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .danger-button {
@@ -565,6 +579,13 @@ body.light-theme .status-badge.status-cancelled {
   border-color: rgba(255, 255, 255, 0.18);
 }
 
+.record-card.is-dragging {
+  opacity: 0.82;
+  transform: scale(0.99);
+  box-shadow: 0 20px 38px rgba(10, 132, 255, 0.18);
+  z-index: 3;
+}
+
 body.light-theme .record-card {
   border-color: rgba(15, 23, 42, 0.14);
 }
@@ -574,6 +595,41 @@ body.light-theme .record-card {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+}
+
+.order-card-top {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 10px;
+}
+
+.order-card-top.is-simple {
+  grid-template-columns: 1fr;
+}
+
+.order-card-top .record-toggle {
+  min-width: 0;
+}
+
+.order-drag-handle {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 14px;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.06);
+  cursor: grab;
+  touch-action: none;
+}
+
+.order-drag-handle:active {
+  cursor: grabbing;
+}
+
+.order-drop-zone.is-sorting {
+  user-select: none;
 }
 
 .record-title-row h4,

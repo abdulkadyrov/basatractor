@@ -268,7 +268,7 @@ async function loadAllData() {
   });
 
   state.data.clients = sortByDateDesc(clients, (client) => client.createdAt);
-  state.data.orders = sortByDateDesc(orders, (order) => order.createdAt);
+  state.data.orders = sortOrdersForQueue(orders);
   state.data.expenses = sortByDateDesc(expenses, (expense) => expense.date);
   state.data.settings = settings;
 }
@@ -710,8 +710,12 @@ function renderOrderFunnel(orders, activeStatus) {
                 <h3>${status.label}</h3>
                 <span class="status-badge status-${status.value}">${statusOrders.length}</span>
               </div>
-              <div class="list-stack">
-                ${statusOrders.length ? statusOrders.map((order) => renderOrderCard(order)).join("") : `<div class="funnel-empty">Пусто</div>`}
+              <div class="list-stack order-drop-zone" data-order-status-zone="${status.value}">
+                ${
+                  statusOrders.length
+                    ? statusOrders.map((order) => renderOrderCard(order, { allowReorder: true })).join("")
+                    : `<div class="funnel-empty">Пусто</div>`
+                }
               </div>
             </section>
           `;
@@ -742,22 +746,34 @@ function renderOrderCard(order, options = {}) {
   const client = getClientById(order.clientId);
   const source = order.source || client?.source || "Не указан";
   const isExpanded = options.forceExpanded || isCardExpanded("orders", order.id);
+  const whatsappUrl = getWhatsAppUrl(client?.phone);
+  const dragHandle =
+    options.allowReorder && !options.forceExpanded
+      ? `
+        <button class="order-drag-handle" type="button" data-order-drag-handle aria-label="Перетащить заказ">
+          <span aria-hidden="true">↕</span>
+        </button>
+      `
+      : "";
   const relationBadge =
     client?.linkedClientId && client?.relationType
       ? `<span class="tiny-pill">Связь: ${escapeHtml(client.relationType)}</span>`
       : "";
 
   return `
-    <article class="record-card is-collapsible ${options.forceExpanded ? "is-static" : ""} ${isExpanded ? "is-expanded" : "is-collapsed"}" data-card-type="orders" data-card-id="${order.id}">
-      <button class="record-toggle" type="button" ${options.forceExpanded ? "" : `data-toggle-card="orders" data-card-id="${order.id}"`} aria-expanded="${isExpanded ? "true" : "false"}">
-        <div class="record-title-row">
-          <div>
-            <h4>${escapeHtml(client?.name || "Клиент удален")}</h4>
-            <p>${escapeHtml(order.city || client?.city || "Город не указан")}</p>
+    <article class="record-card is-collapsible ${options.forceExpanded ? "is-static" : ""} ${isExpanded ? "is-expanded" : "is-collapsed"}" data-card-type="orders" data-card-id="${order.id}" data-order-status="${order.status}">
+      <div class="order-card-top ${dragHandle ? "" : "is-simple"}">
+        ${dragHandle}
+        <button class="record-toggle" type="button" ${options.forceExpanded ? "" : `data-toggle-card="orders" data-card-id="${order.id}"`} aria-expanded="${isExpanded ? "true" : "false"}">
+          <div class="record-title-row">
+            <div>
+              <h4>${escapeHtml(client?.name || "Клиент удален")}</h4>
+              <p>${escapeHtml(order.city || client?.city || "Город не указан")}</p>
+            </div>
+            <span class="status-badge status-${order.status}">${getStatusLabel(order.status)}</span>
           </div>
-          <span class="status-badge status-${order.status}">${getStatusLabel(order.status)}</span>
-        </div>
-      </button>
+        </button>
+      </div>
 
       <div class="record-details" ${isExpanded ? "" : "hidden"}>
         <div>
@@ -783,6 +799,11 @@ function renderOrderCard(order, options = {}) {
         <div class="inline-actions">
           ${order.status !== "done" ? `<button class="primary-button" type="button" data-action="complete-order" data-order-id="${order.id}">Выполнить</button>` : ""}
           <button class="ghost-button" type="button" data-action="edit-order" data-order-id="${order.id}">Редактировать</button>
+          ${
+            whatsappUrl
+              ? `<a class="whatsapp-button" href="${escapeHtml(whatsappUrl)}" target="_blank" rel="noopener noreferrer">Написать</a>`
+              : `<button class="ghost-button" type="button" disabled title="У клиента не указан номер">Написать</button>`
+          }
           ${order.status !== "cancelled" ? `<button class="danger-button" type="button" data-action="cancel-order" data-order-id="${order.id}">Отменить</button>` : ""}
           <button class="danger-button" type="button" data-action="delete-order" data-order-id="${order.id}">Удалить</button>
           ${!options.compact ? `<button class="chip-button" type="button" data-action="view-client" data-client-id="${order.clientId}">Клиент</button>` : ""}
@@ -940,6 +961,7 @@ function bindScreenEvents() {
   });
 
   bindRecordInteractions(appContent);
+  bindOrderDragAndDrop(appContent);
 
   bindFilterInputs();
 }
@@ -1053,6 +1075,112 @@ function bindFilterInputs() {
       render();
     });
   }
+}
+
+function bindOrderDragAndDrop(root) {
+  root.querySelectorAll("[data-order-drag-handle]").forEach((handle) => {
+    handle.addEventListener("pointerdown", (event) => {
+      if (event.button && event.button !== 0) {
+        return;
+      }
+
+      const card = handle.closest('[data-card-type="orders"]');
+      const zone = card?.closest("[data-order-status-zone]");
+      if (!card || !zone) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const pointerId = event.pointerId;
+      const initialIds = getOrderIdsFromZone(zone);
+      card.classList.add("is-dragging");
+      zone.classList.add("is-sorting");
+      handle.setPointerCapture?.(pointerId);
+
+      const onPointerMove = (moveEvent) => {
+        if (moveEvent.pointerId !== pointerId) {
+          return;
+        }
+
+        moveEvent.preventDefault();
+
+        const target = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY)?.closest('[data-card-type="orders"]');
+        if (!target || target === card || target.closest("[data-order-status-zone]") !== zone) {
+          return;
+        }
+
+        const targetRect = target.getBoundingClientRect();
+        const shouldPlaceBefore = moveEvent.clientY < targetRect.top + targetRect.height / 2;
+        zone.insertBefore(card, shouldPlaceBefore ? target : target.nextElementSibling);
+      };
+
+      const finishDrag = (finishEvent) => {
+        if (finishEvent.pointerId !== pointerId) {
+          return;
+        }
+
+        document.removeEventListener("pointermove", onPointerMove);
+        document.removeEventListener("pointerup", finishDrag);
+        document.removeEventListener("pointercancel", finishDrag);
+        card.classList.remove("is-dragging");
+        zone.classList.remove("is-sorting");
+        handle.releasePointerCapture?.(pointerId);
+
+        if (finishEvent.type === "pointercancel") {
+          render();
+          return;
+        }
+
+        const nextIds = getOrderIdsFromZone(zone);
+        if (nextIds.join("|") === initialIds.join("|")) {
+          return;
+        }
+
+        saveOrderQueue(zone.dataset.orderStatusZone, nextIds).catch(() => {
+          toast("Не удалось сохранить порядок заказов");
+          render();
+        });
+      };
+
+      document.addEventListener("pointermove", onPointerMove, { passive: false });
+      document.addEventListener("pointerup", finishDrag);
+      document.addEventListener("pointercancel", finishDrag);
+    });
+  });
+}
+
+function getOrderIdsFromZone(zone) {
+  return [...zone.querySelectorAll('[data-card-type="orders"]')].map((card) => card.dataset.cardId).filter(Boolean);
+}
+
+async function saveOrderQueue(status, visibleOrderedIds) {
+  const visibleIds = new Set(visibleOrderedIds);
+  const statusOrders = sortOrdersForQueue(state.data.orders.filter((order) => order.status === status));
+  let visibleIndex = 0;
+  const fullOrderedIds = statusOrders.map((order) => {
+    if (!visibleIds.has(order.id)) {
+      return order.id;
+    }
+
+    const nextVisibleId = visibleOrderedIds[visibleIndex];
+    visibleIndex += 1;
+    return nextVisibleId;
+  });
+  const byId = new Map(state.data.orders.map((order) => [order.id, order]));
+  const updatedAt = nowIso();
+  const updates = fullOrderedIds
+    .map((id, index) => {
+      const order = byId.get(id);
+      const queuePosition = index + 1;
+      return order && Number(order.queuePosition) !== queuePosition ? { ...order, queuePosition, updatedAt } : null;
+    })
+    .filter(Boolean);
+
+  await Promise.all(updates.map((order) => putRecord(STORE_NAMES.orders, order)));
+  await loadAllData();
+  render();
+  toast("Порядок заказов сохранен");
 }
 
 async function handleAction(action, payload) {
@@ -1657,6 +1785,7 @@ function openOrderForm({ orderId, clientId } = {}) {
               ? new Date(completedDateValue || plannedDateValue || new Date().toISOString()).toISOString()
               : "",
           source: sourceSelect.value,
+          queuePosition: getOrderQueuePosition(order, status),
           createdAt: order?.createdAt || nowIso(),
           updatedAt: nowIso(),
         };
@@ -1984,6 +2113,7 @@ async function markOrderDone(orderId) {
     ...order,
     status: "done",
     completedDate: order.completedDate || nowIso(),
+    queuePosition: getOrderQueuePosition(order, "done"),
     updatedAt: nowIso(),
   });
 
@@ -2002,6 +2132,7 @@ async function markOrderCancelled(orderId) {
     ...order,
     status: "cancelled",
     completedDate: "",
+    queuePosition: getOrderQueuePosition(order, "cancelled"),
     updatedAt: nowIso(),
   });
 
@@ -2164,6 +2295,56 @@ function getKnownCities() {
     ...state.data.clients.map((client) => client.city),
     ...state.data.orders.map((order) => order.city),
   ]);
+}
+
+function sortOrdersForQueue(orders) {
+  return [...orders].sort((firstOrder, secondOrder) => {
+    const firstPosition = getSortableOrderPosition(firstOrder);
+    const secondPosition = getSortableOrderPosition(secondOrder);
+
+    if (firstPosition !== secondPosition) {
+      return firstPosition - secondPosition;
+    }
+
+    const firstDate = new Date(firstOrder.createdAt || 0).getTime();
+    const secondDate = new Date(secondOrder.createdAt || 0).getTime();
+    return secondDate - firstDate;
+  });
+}
+
+function getSortableOrderPosition(order) {
+  const queuePosition = Number(order?.queuePosition);
+  if (Number.isFinite(queuePosition)) {
+    return queuePosition;
+  }
+
+  const createdAt = new Date(order?.createdAt || 0).getTime();
+  return Number.isFinite(createdAt) && createdAt ? -createdAt : Number.MAX_SAFE_INTEGER;
+}
+
+function getOrderQueuePosition(order, status) {
+  if (order?.status === status && Number.isFinite(Number(order.queuePosition))) {
+    return Number(order.queuePosition);
+  }
+
+  const positions = state.data.orders
+    .filter((item) => item.status === status && item.id !== order?.id)
+    .map(getSortableOrderPosition);
+  const minPosition = Math.min(...positions);
+
+  return Number.isFinite(minPosition) ? minPosition - 1 : 1;
+}
+
+function getWhatsAppUrl(phone) {
+  let digits = String(phone || "").replace(/\D/g, "");
+
+  if (digits.length === 11 && digits.startsWith("8")) {
+    digits = `7${digits.slice(1)}`;
+  } else if (digits.length === 10) {
+    digits = `7${digits}`;
+  }
+
+  return digits.length >= 10 ? `https://wa.me/${digits}` : "";
 }
 
 function getUniqueSortedValues(values) {
