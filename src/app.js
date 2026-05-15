@@ -48,6 +48,7 @@ const state = {
   ui: {
     orderFiltersOpen: false,
     clientFiltersOpen: false,
+    orderReorderActive: false,
   },
   data: {
     clients: [],
@@ -355,6 +356,9 @@ function renderOrdersScreen() {
           </button>
         </div>
         <div class="inline-actions order-toolbar-actions">
+          <button class="ghost-button ${state.ui.orderReorderActive ? "is-active" : ""}" type="button" data-action="toggle-order-reorder">
+            ${state.ui.orderReorderActive ? "Готово" : "Переставить"}
+          </button>
           <button class="primary-button" type="button" data-action="new-order">Новый</button>
         </div>
       </section>
@@ -713,7 +717,7 @@ function renderOrderFunnel(orders, activeStatus) {
               <div class="list-stack order-drop-zone" data-order-status-zone="${status.value}">
                 ${
                   statusOrders.length
-                    ? statusOrders.map((order) => renderOrderCard(order, { allowReorder: true })).join("")
+                    ? statusOrders.map((order) => renderOrderCard(order, { allowReorder: state.ui.orderReorderActive })).join("")
                     : `<div class="funnel-empty">Пусто</div>`
                 }
               </div>
@@ -747,6 +751,8 @@ function renderOrderCard(order, options = {}) {
   const source = order.source || client?.source || "Не указан";
   const isExpanded = options.forceExpanded || isCardExpanded("orders", order.id);
   const whatsappUrl = getWhatsAppUrl(client?.phone);
+  const callUrl = getPhoneCallUrl(getContactPhone(client));
+  const urgency = getOrderUrgency(order);
   const dragHandle =
     options.allowReorder && !options.forceExpanded
       ? `
@@ -761,7 +767,7 @@ function renderOrderCard(order, options = {}) {
       : "";
 
   return `
-    <article class="record-card is-collapsible ${options.forceExpanded ? "is-static" : ""} ${isExpanded ? "is-expanded" : "is-collapsed"}" data-card-type="orders" data-card-id="${order.id}" data-order-status="${order.status}">
+    <article class="record-card order-card ${urgency ? `urgency-${urgency}` : ""} is-collapsible ${options.forceExpanded ? "is-static" : ""} ${isExpanded ? "is-expanded" : "is-collapsed"}" data-card-type="orders" data-card-id="${order.id}" data-order-status="${order.status}">
       <div class="order-card-top ${dragHandle ? "" : "is-simple"}">
         ${dragHandle}
         <button class="record-toggle" type="button" ${options.forceExpanded ? "" : `data-toggle-card="orders" data-card-id="${order.id}"`} aria-expanded="${isExpanded ? "true" : "false"}">
@@ -770,7 +776,10 @@ function renderOrderCard(order, options = {}) {
               <h4>${escapeHtml(client?.name || "Клиент удален")}</h4>
               <p>${escapeHtml(order.city || client?.city || "Город не указан")}</p>
             </div>
-            <span class="status-badge status-${order.status}">${getStatusLabel(order.status)}</span>
+            <span class="record-badges">
+              ${urgency ? `<span class="urgency-badge urgency-${urgency}">${getOrderUrgencyLabel(urgency)}</span>` : ""}
+              <span class="status-badge status-${order.status}">${getStatusLabel(order.status)}</span>
+            </span>
           </div>
         </button>
       </div>
@@ -804,6 +813,11 @@ function renderOrderCard(order, options = {}) {
               ? `<a class="whatsapp-button" href="${escapeHtml(whatsappUrl)}" target="_blank" rel="noopener noreferrer">Написать</a>`
               : `<button class="ghost-button" type="button" disabled title="У клиента не указан номер">Написать</button>`
           }
+          ${
+            callUrl
+              ? `<a class="call-button" href="${escapeHtml(callUrl)}">Позвонить</a>`
+              : `<button class="ghost-button" type="button" disabled title="У клиента не указан номер">Позвонить</button>`
+          }
           ${order.status !== "cancelled" ? `<button class="danger-button" type="button" data-action="cancel-order" data-order-id="${order.id}">Отменить</button>` : ""}
           <button class="danger-button" type="button" data-action="delete-order" data-order-id="${order.id}">Удалить</button>
           ${!options.compact ? `<button class="chip-button" type="button" data-action="view-client" data-client-id="${order.clientId}">Клиент</button>` : ""}
@@ -817,6 +831,7 @@ function renderClientCard(client) {
   const orderSummary = getClientOrderSummary(client.id);
   const linkedClient = getClientById(client.linkedClientId);
   const isExpanded = isCardExpanded("clients", client.id);
+  const callUrl = getPhoneCallUrl(getContactPhone(client));
 
   return `
     <article class="record-card is-collapsible ${isExpanded ? "is-expanded" : "is-collapsed"}" data-card-type="clients" data-card-id="${client.id}">
@@ -860,6 +875,11 @@ function renderClientCard(client) {
 
         <div class="inline-actions">
           <button class="primary-button" type="button" data-action="view-client" data-client-id="${client.id}">Открыть</button>
+          ${
+            callUrl
+              ? `<a class="call-button" href="${escapeHtml(callUrl)}">Позвонить</a>`
+              : `<button class="ghost-button" type="button" disabled title="У клиента не указан номер">Позвонить</button>`
+          }
           <button class="ghost-button" type="button" data-action="edit-client" data-client-id="${client.id}">Редактировать</button>
           <button class="chip-button" type="button" data-action="new-order-for-client" data-client-id="${client.id}">Новый заказ</button>
         </div>
@@ -1261,6 +1281,12 @@ async function handleAction(action, payload) {
     return;
   }
 
+  if (action === "toggle-order-reorder") {
+    state.ui.orderReorderActive = !state.ui.orderReorderActive;
+    render();
+    return;
+  }
+
   if (action === "toggle-client-filters") {
     state.ui.clientFiltersOpen = !state.ui.clientFiltersOpen;
     render();
@@ -1434,6 +1460,7 @@ function openClientDetails(clientId) {
 
   const linkedClient = getClientById(client.linkedClientId);
   const referredByClient = getClientById(client.referredByClientId);
+  const callUrl = getPhoneCallUrl(getContactPhone(client));
   const orders = sortByDateDesc(
     state.data.orders.filter((order) => order.clientId === clientId),
     (order) => order.completedDate || order.plannedDate || order.createdAt,
@@ -1480,6 +1507,11 @@ function openClientDetails(clientId) {
       <section class="sheet-section">
         <div class="settings-actions">
           <button class="primary-button" type="button" data-client-action="new-order">Новый заказ</button>
+          ${
+            callUrl
+              ? `<a class="call-button" href="${escapeHtml(callUrl)}">Позвонить</a>`
+              : `<button class="ghost-button" type="button" disabled title="У клиента не указан номер">Позвонить</button>`
+          }
           <button class="ghost-button" type="button" data-client-action="edit-client">Редактировать</button>
           <button class="danger-button" type="button" data-client-action="archive-client">Удалить / архивировать</button>
         </div>
@@ -2345,6 +2377,54 @@ function getWhatsAppUrl(phone) {
   }
 
   return digits.length >= 10 ? `https://wa.me/${digits}` : "";
+}
+
+function getPhoneCallUrl(phone) {
+  const digits = String(phone || "").replace(/\D/g, "");
+
+  if (digits.length < 10) {
+    return "";
+  }
+
+  const normalized = digits.length === 11 && digits.startsWith("8") ? `7${digits.slice(1)}` : digits;
+  return `tel:+${normalized}`;
+}
+
+function getContactPhone(client) {
+  if (!client) {
+    return "";
+  }
+
+  if (client.phone) {
+    return client.phone;
+  }
+
+  const linkedClient = getClientById(client.linkedClientId);
+  return linkedClient?.phone || "";
+}
+
+function getOrderUrgency(order) {
+  if (order?.status !== "pending") {
+    return "";
+  }
+
+  if (!order.plannedDate) {
+    return "regular";
+  }
+
+  const plannedDate = new Date(order.plannedDate);
+  if (!Number.isFinite(plannedDate.getTime())) {
+    return "regular";
+  }
+
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+
+  return plannedDate <= todayEnd ? "urgent" : "regular";
+}
+
+function getOrderUrgencyLabel(urgency) {
+  return urgency === "urgent" ? "Срочно" : "Не срочно";
 }
 
 function getUniqueSortedValues(values) {
