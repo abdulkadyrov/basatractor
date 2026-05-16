@@ -380,16 +380,32 @@ svg {
 .secondary-button,
 .ghost-button,
 .whatsapp-button,
+.call-button,
 .danger-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 46px;
-  padding: 0 16px;
-  border-radius: 16px;
+  gap: 7px;
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 12px;
   font-weight: 600;
+  font-size: 0.92rem;
   text-align: center;
   text-decoration: none;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.record-details .inline-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.record-details .inline-actions > * {
+  width: 100%;
+  min-width: 0;
 }
 
 .chip-button {
@@ -405,8 +421,8 @@ svg {
 
 .primary-button {
   color: #06111c;
-  background: linear-gradient(135deg, #37c6ff, #30d158);
-  box-shadow: 0 16px 30px rgba(21, 163, 159, 0.22);
+  background: linear-gradient(135deg, #5eead4, #86efac);
+  box-shadow: 0 12px 24px rgba(21, 163, 159, 0.18);
 }
 
 .secondary-button {
@@ -422,15 +438,15 @@ svg {
 }
 
 .whatsapp-button {
-  color: #052e16;
-  background: linear-gradient(135deg, #25d366, #86efac);
-  border: 1px solid rgba(34, 197, 94, 0.36);
+  color: #c9fdd9;
+  background: rgba(34, 197, 94, 0.14);
+  border: 1px solid rgba(34, 197, 94, 0.3);
 }
 
 .call-button {
-  color: #06111c;
-  background: linear-gradient(135deg, #7dd3fc, #38bdf8);
-  border: 1px solid rgba(56, 189, 248, 0.34);
+  color: #bae6fd;
+  background: rgba(14, 165, 233, 0.14);
+  border: 1px solid rgba(56, 189, 248, 0.3);
 }
 
 .ghost-button:disabled {
@@ -444,15 +460,27 @@ svg {
 }
 
 .danger-button {
-  color: #ffd2cf;
-  background: rgba(255, 95, 87, 0.16);
-  border: 1px solid rgba(255, 95, 87, 0.24);
+  color: #fecaca;
+  background: rgba(255, 95, 87, 0.1);
+  border: 1px solid rgba(255, 95, 87, 0.2);
 }
 
 body.light-theme .danger-button {
   color: #9f1239;
   background: rgba(244, 63, 94, 0.14);
   border-color: rgba(225, 29, 72, 0.34);
+}
+
+body.light-theme .whatsapp-button {
+  color: #166534;
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(22, 163, 74, 0.28);
+}
+
+body.light-theme .call-button {
+  color: #075985;
+  background: rgba(14, 165, 233, 0.12);
+  border-color: rgba(2, 132, 199, 0.26);
 }
 
 .page-header,

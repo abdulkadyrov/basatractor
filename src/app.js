@@ -810,13 +810,13 @@ function renderOrderCard(order, options = {}) {
           <button class="ghost-button" type="button" data-action="edit-order" data-order-id="${order.id}">Редактировать</button>
           ${
             whatsappUrl
-              ? `<a class="whatsapp-button" href="${escapeHtml(whatsappUrl)}" target="_blank" rel="noopener noreferrer">Написать</a>`
-              : `<button class="ghost-button" type="button" disabled title="У клиента не указан номер">Написать</button>`
+              ? `<a class="whatsapp-button" href="${escapeHtml(whatsappUrl)}" target="_blank" rel="noopener noreferrer">WhatsApp</a>`
+              : `<button class="ghost-button" type="button" disabled title="У клиента не указан номер">WhatsApp</button>`
           }
           ${
             callUrl
-              ? `<a class="call-button" href="${escapeHtml(callUrl)}">Позвонить</a>`
-              : `<button class="ghost-button" type="button" disabled title="У клиента не указан номер">Позвонить</button>`
+              ? `<a class="call-button" href="${escapeHtml(callUrl)}">Звонок</a>`
+              : `<button class="ghost-button" type="button" disabled title="У клиента не указан номер">Звонок</button>`
           }
           ${order.status !== "cancelled" ? `<button class="danger-button" type="button" data-action="cancel-order" data-order-id="${order.id}">Отменить</button>` : ""}
           <button class="danger-button" type="button" data-action="delete-order" data-order-id="${order.id}">Удалить</button>
@@ -877,8 +877,8 @@ function renderClientCard(client) {
           <button class="primary-button" type="button" data-action="view-client" data-client-id="${client.id}">Открыть</button>
           ${
             callUrl
-              ? `<a class="call-button" href="${escapeHtml(callUrl)}">Позвонить</a>`
-              : `<button class="ghost-button" type="button" disabled title="У клиента не указан номер">Позвонить</button>`
+              ? `<a class="call-button" href="${escapeHtml(callUrl)}">Звонок</a>`
+              : `<button class="ghost-button" type="button" disabled title="У клиента не указан номер">Звонок</button>`
           }
           <button class="ghost-button" type="button" data-action="edit-client" data-client-id="${client.id}">Редактировать</button>
           <button class="chip-button" type="button" data-action="new-order-for-client" data-client-id="${client.id}">Новый заказ</button>
@@ -1509,8 +1509,8 @@ function openClientDetails(clientId) {
           <button class="primary-button" type="button" data-client-action="new-order">Новый заказ</button>
           ${
             callUrl
-              ? `<a class="call-button" href="${escapeHtml(callUrl)}">Позвонить</a>`
-              : `<button class="ghost-button" type="button" disabled title="У клиента не указан номер">Позвонить</button>`
+              ? `<a class="call-button" href="${escapeHtml(callUrl)}">Звонок</a>`
+              : `<button class="ghost-button" type="button" disabled title="У клиента не указан номер">Звонок</button>`
           }
           <button class="ghost-button" type="button" data-client-action="edit-client">Редактировать</button>
           <button class="danger-button" type="button" data-client-action="archive-client">Удалить / архивировать</button>
